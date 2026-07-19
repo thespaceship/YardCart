@@ -1,7 +1,10 @@
 import type { Zone } from "@prisma/client";
 
 export function normalizeZip(zip: string): string {
-  return zip.trim().slice(0, 5);
+  const t = zip.trim();
+  // accept "43004" or "43004-1234"; anything else stays as-is (and fails validation)
+  const m = t.match(/^(\d{5})(-\d{4})?$/);
+  return m ? m[1] : t;
 }
 
 export function isValidZip(zip: string): boolean {

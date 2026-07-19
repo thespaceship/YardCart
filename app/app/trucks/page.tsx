@@ -38,7 +38,6 @@ function TruckForm({ truck }: { truck?: {
 
 export default async function TrucksPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const trucks = await db.truck.findMany({
     where: { yardId: ctx.yard.id },
     orderBy: [{ active: "desc" }, { name: "asc" }],

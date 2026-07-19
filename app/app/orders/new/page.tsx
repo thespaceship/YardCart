@@ -8,7 +8,6 @@ export const metadata = { title: "New phone order" };
 
 export default async function NewOrderPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const products = await db.product.findMany({
     where: { yardId: ctx.yard.id, active: true },
     orderBy: { sortOrder: "asc" },

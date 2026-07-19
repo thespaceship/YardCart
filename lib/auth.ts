@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
@@ -73,11 +74,18 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
 }
 
-/** Require a logged-in user with a yard; returns user + yard or throws a redirect-worthy null. */
-export async function requireYardUser() {
+/**
+ * Require a logged-in user with a yard. Redirects to /login when logged out and
+ * to /app/onboarding when the account has no yard yet.
+ */
+export async function requireYardUser(): Promise<{
+  user: SessionUser;
+  yard: NonNullable<Awaited<ReturnType<typeof db.yard.findUnique>>>;
+}> {
   const user = await getSessionUser();
-  if (!user || !user.yardId) return null;
+  if (!user) redirect("/login");
+  if (!user.yardId) redirect("/app/onboarding");
   const yard = await db.yard.findUnique({ where: { id: user.yardId } });
-  if (!yard) return null;
+  if (!yard) redirect("/app/onboarding");
   return { user, yard };
 }

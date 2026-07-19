@@ -14,7 +14,6 @@ export default async function DispatchPage(props: {
   searchParams: Promise<{ start?: string }>;
 }) {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const { start } = await props.searchParams;
 
   const startDate = start && /^\d{4}-\d{2}-\d{2}$/.test(start) ? new Date(`${start}T00:00:00`) : new Date();

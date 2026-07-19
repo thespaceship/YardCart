@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireYardUser } from "@/lib/auth";
+import { getSessionUser, requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
 import { computeDayLoads, orderYards } from "@/lib/capacity";
@@ -18,10 +18,7 @@ function dayRange(offset: number): { start: Date; end: Date } {
 }
 
 export default async function OverviewPage() {
-  const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
-  const { yard } = ctx;
-  if (!yard.onboardedAt) redirect("/app/onboarding");
+  const { yard } = await requireYardUser();
 
   const today = dayRange(0);
   const [newOrders, todaysOrders, trucks, weekDelivered] = await Promise.all([

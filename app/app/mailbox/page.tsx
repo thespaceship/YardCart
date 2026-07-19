@@ -6,7 +6,6 @@ export const metadata = { title: "Mailbox" };
 
 export default async function MailboxPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const emails = await db.emailLog.findMany({
     where: { yardId: ctx.yard.id },
     orderBy: { createdAt: "desc" },

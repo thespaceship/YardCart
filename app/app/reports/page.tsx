@@ -7,7 +7,6 @@ export const metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const yardId = ctx.yard.id;
   const since30 = new Date(Date.now() - 30 * 864e5);
 

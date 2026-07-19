@@ -9,7 +9,6 @@ import { parseZipList } from "@/lib/zones";
 
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   return ctx;
 }
 

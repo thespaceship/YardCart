@@ -20,7 +20,6 @@ export default async function OrdersPage(props: {
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const { status = "", q = "" } = await props.searchParams;
 
   const where: Record<string, unknown> = { yardId: ctx.yard.id };

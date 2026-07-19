@@ -7,7 +7,6 @@ export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const { yard } = ctx;
   const storefrontUrl = `${process.env.APP_URL ?? ""}/s/${yard.slug}`;
 

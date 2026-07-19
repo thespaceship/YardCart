@@ -82,7 +82,6 @@ function ProductForm({ product }: { product?: {
 
 export default async function ProductsPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const products = await db.product.findMany({
     where: { yardId: ctx.yard.id },
     orderBy: [{ active: "desc" }, { sortOrder: "asc" }],

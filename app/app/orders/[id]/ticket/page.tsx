@@ -8,7 +8,6 @@ export const metadata = { title: "Delivery ticket" };
 
 export default async function TicketPage(props: { params: Promise<{ id: string }> }) {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const { id } = await props.params;
   const order = await db.order.findUnique({
     where: { id },

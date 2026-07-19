@@ -15,7 +15,6 @@ export const metadata = { title: "Order" };
 
 export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const { id } = await props.params;
   const order = await db.order.findUnique({
     where: { id },

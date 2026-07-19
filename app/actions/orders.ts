@@ -11,7 +11,6 @@ import { formatCents } from "@/lib/money";
 
 async function ownedOrder(orderId: string) {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const order = await db.order.findUnique({ where: { id: orderId }, include: { yard: true } });
   if (!order || order.yardId !== ctx.yard.id) throw new Error("Order not found");
   return { ctx, order };
@@ -123,7 +122,6 @@ export async function createPhoneOrder(
   formData: FormData
 ): Promise<PhoneOrderState> {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
 
   const cart: { productId: string; qty: number }[] = [];
   for (const [key, value] of formData.entries()) {

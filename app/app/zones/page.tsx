@@ -42,7 +42,6 @@ function ZoneForm({ zone }: { zone?: {
 
 export default async function ZonesPage() {
   const ctx = await requireYardUser();
-  if (!ctx) redirect("/login");
   const zones = await db.zone.findMany({
     where: { yardId: ctx.yard.id },
     orderBy: [{ active: "desc" }, { deliveryFeeCents: "asc" }],

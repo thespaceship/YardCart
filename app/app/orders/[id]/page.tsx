@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";

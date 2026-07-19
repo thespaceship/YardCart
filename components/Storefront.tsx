@@ -137,6 +137,14 @@ export default function Storefront({
     setCart((c) => ({ ...c, [p.id]: qty }));
   };
 
+  const bumpQty = (p: PublicProduct, dir: 1 | -1) => {
+    setCart((c) => {
+      const current = c[p.id] ?? 0;
+      const next = Math.max(0, Math.min(p.maxQty, current + dir * p.qtyStep));
+      return { ...c, [p.id]: Math.round(next * 100) / 100 };
+    });
+  };
+
   const calcYards = useMemo(() => {
     const sqft = parseFloat(calcSqft);
     const depth = parseFloat(calcDepth);
@@ -242,7 +250,7 @@ export default function Storefront({
                       type="button"
                       className="btn secondary small"
                       aria-label={`Less ${p.name}`}
-                      onClick={() => setQty(p, qty - p.qtyStep)}
+                      onClick={() => bumpQty(p, -1)}
                     >
                       −
                     </button>
@@ -258,7 +266,7 @@ export default function Storefront({
                       type="button"
                       className="btn secondary small"
                       aria-label={`More ${p.name}`}
-                      onClick={() => setQty(p, (qty || 0) + p.qtyStep)}
+                      onClick={() => bumpQty(p, 1)}
                     >
                       +
                     </button>

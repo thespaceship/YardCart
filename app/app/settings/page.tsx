@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { updateSettings } from "@/app/actions/catalog";
 

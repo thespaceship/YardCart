@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
@@ -64,7 +65,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
           <Storefront slug={yard.slug} yardName={yard.name} yardPhone={yard.phone} products={products} />
         )}
         <footer className="mfooter" style={{ marginTop: 48 }}>
-          Online ordering powered by <a href="/">YardCart</a>
+          Online ordering powered by <Link href="/">YardCart</Link>
         </footer>
       </main>
     </div>

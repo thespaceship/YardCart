@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionUser, requireYardUser } from "@/lib/auth";
+import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
 import { computeDayLoads, orderYards } from "@/lib/capacity";

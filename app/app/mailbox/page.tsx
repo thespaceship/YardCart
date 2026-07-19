@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 

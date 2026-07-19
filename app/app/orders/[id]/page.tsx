@@ -142,11 +142,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           {order.requestedDate && (
             <p className="muted">
               Customer requested{" "}
-              {order.requestedDate.toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
+              {order.requestedDate.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })}
             </p>
           )}
           <form action={scheduleOrder} className="field-row" style={{ alignItems: "flex-end" }}>

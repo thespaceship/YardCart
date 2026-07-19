@@ -27,11 +27,7 @@ export default async function ThanksPage(props: {
               {" "}
               requested for{" "}
               <strong>
-                {order.requestedDate.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
+                {order.requestedDate.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })}
               </strong>
             </>
           )}

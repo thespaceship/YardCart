@@ -31,6 +31,7 @@ model Yard {
   state              String    @default("")
   zip                String    @default("")
   aboutText          String    @default("")
+  timezone           String    @default("America/New_York") // IANA zone for cutoffs & day math
   // ordering settings
   minLeadDays        Int       @default(1) // earliest delivery = today + minLeadDays
   maxAdvanceDays     Int       @default(30)

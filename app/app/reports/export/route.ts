@@ -3,7 +3,10 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function csvEscape(v: string | number): string {
-  const s = String(v);
+  let s = String(v);
+  // formula-injection guard: neutralize leading = + - @ so spreadsheet apps
+  // don't execute customer-supplied text as formulas
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

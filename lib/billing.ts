@@ -34,6 +34,15 @@ export const PLANS: Record<
   },
 };
 
+/** Is this yard's subscription (or trial) currently good for online ordering? */
+export function yardActive(yard: { planStatus: string; trialEndsAt: Date | null }): boolean {
+  if (yard.planStatus === "ACTIVE") return true;
+  if (yard.planStatus === "TRIALING") {
+    return !yard.trialEndsAt || yard.trialEndsAt.getTime() > Date.now();
+  }
+  return false;
+}
+
 export function stripeEnabled(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY);
 }

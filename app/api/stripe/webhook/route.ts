@@ -46,31 +46,51 @@ export async function POST(req: NextRequest) {
       const yardId = session.metadata?.yardId;
       const plan = session.metadata?.plan;
       if (yardId && plan && PLANS[plan]) {
-        const now = new Date();
-        const periodEnd = new Date(now);
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-        await db.$transaction([
-          db.yard.update({
-            where: { id: yardId },
-            data: {
-              plan,
-              planStatus: "ACTIVE",
-              stripeCustomerId: session.customer ?? undefined,
-            },
-          }),
-          db.invoice.create({
-            data: {
-              yardId,
-              amountCents: PLANS[plan].priceCents,
-              plan,
-              periodStart: now,
-              periodEnd,
-              status: session.livemode ? "PAID" : "TEST_PAID",
-              provider: "STRIPE_TEST",
-              externalId: String(session.id ?? ""),
-            },
-          }),
-        ]);
+        // idempotency: Stripe redelivers events; skip if this session already recorded
+        const existing = await db.invoice.findFirst({
+          where: { externalId: String(session.id ?? "") },
+        });
+        if (!existing) {
+          const now = new Date();
+          const periodEnd = new Date(now);
+          periodEnd.setMonth(periodEnd.getMonth() + 1);
+          await db.$transaction([
+            db.yard.update({
+              where: { id: yardId },
+              data: {
+                plan,
+                planStatus: "ACTIVE",
+                stripeCustomerId: session.customer ?? undefined,
+              },
+            }),
+            db.invoice.create({
+              data: {
+                yardId,
+                amountCents: PLANS[plan].priceCents,
+                plan,
+                periodStart: now,
+                periodEnd,
+                status: session.livemode ? "PAID" : "TEST_PAID",
+                provider: session.livemode ? "STRIPE" : "STRIPE_TEST",
+                externalId: String(session.id ?? ""),
+              },
+            }),
+          ]);
+        }
+      }
+    } else if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object;
+      const yardId = sub.metadata?.yardId;
+      if (yardId) {
+        await db.yard.update({ where: { id: yardId }, data: { planStatus: "CANCELED" } });
+      }
+    } else if (event.type === "invoice.payment_failed") {
+      const customer = event.data.object?.customer;
+      if (customer) {
+        await db.yard.updateMany({
+          where: { stripeCustomerId: String(customer) },
+          data: { planStatus: "PAST_DUE" },
+        });
       }
     }
     return NextResponse.json({ received: true });

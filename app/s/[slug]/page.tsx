@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { yardActive } from "@/lib/billing";
 import { trackEvent } from "@/lib/observability";
 import Storefront from "@/components/Storefront";
 
@@ -56,7 +57,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
       </header>
       <main className="container" style={{ padding: "28px 20px 60px", maxWidth: 860 }}>
         {yard.aboutText && <p className="muted" style={{ maxWidth: 640 }}>{yard.aboutText}</p>}
-        {!yard.acceptOnlineOrders ? (
+        {!yard.acceptOnlineOrders || !yardActive(yard) ? (
           <div className="alert info">
             Online ordering is paused right now — please call {yard.phone || "the yard"} to place an
             order.

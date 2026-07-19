@@ -21,8 +21,12 @@ export async function scheduleOrder(formData: FormData): Promise<void> {
   const date = String(formData.get("date") ?? "");
   const slot = String(formData.get("slot") ?? "");
   const truckId = String(formData.get("truckId") ?? "");
-  const { order } = await ownedOrder(orderId);
+  const { ctx, order } = await ownedOrder(orderId);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Pick a date");
+  if (truckId) {
+    const truck = await db.truck.findUnique({ where: { id: truckId } });
+    if (!truck || truck.yardId !== ctx.yard.id) throw new Error("Unknown truck");
+  }
 
   const updated = await db.order.update({
     where: { id: orderId },
@@ -35,11 +39,7 @@ export async function scheduleOrder(formData: FormData): Promise<void> {
   });
 
   if (updated.customerEmail) {
-    const dateStr = updated.scheduledDate!.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
+    const dateStr = updated.scheduledDate!.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
     await sendEmail({
       yardId: order.yardId,
       to: updated.customerEmail,

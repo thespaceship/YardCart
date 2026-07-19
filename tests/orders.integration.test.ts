@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { db } from "@/lib/db";
 import { placeOrder, OrderError } from "@/lib/orders";
 
+const FUTURE_DATE = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+
 let yardId: string;
 let productId: string;
 
@@ -51,7 +53,7 @@ describe("placeOrder integration", () => {
       customerEmail: "tester@example.com",
       addressLine: "1 Test St",
       zip: "43004",
-      requestedDate: "2026-08-01",
+      requestedDate: FUTURE_DATE,
       cart: [{ productId, qty: 5 }],
     });
     expect(order.materialCents).toBe(20000);
@@ -129,6 +131,75 @@ describe("placeOrder integration", () => {
         cart: [{ productId, qty: 1 }], // $40 < $100 min
       })
     ).rejects.toMatchObject({ code: "below_minimum" });
+  });
+
+  it("requires a delivery date for online orders", async () => {
+    await expect(
+      placeOrder({
+        yardId,
+        channel: "ONLINE",
+        customerName: "X",
+        customerPhone: "1",
+        addressLine: "1 St",
+        zip: "43004",
+        cart: [{ productId, qty: 5 }],
+      })
+    ).rejects.toMatchObject({ code: "bad_date" });
+  });
+
+  it("rejects online orders for unavailable dates (past)", async () => {
+    await expect(
+      placeOrder({
+        yardId,
+        channel: "ONLINE",
+        customerName: "X",
+        customerPhone: "1",
+        addressLine: "1 St",
+        zip: "43004",
+        requestedDate: "2020-01-01",
+        cart: [{ productId, qty: 5 }],
+      })
+    ).rejects.toMatchObject({ code: "date_unavailable" });
+  });
+
+  it("merges duplicate cart lines instead of stacking them", async () => {
+    const order = await placeOrder({
+      yardId,
+      channel: "PHONE",
+      customerName: "Dup",
+      customerPhone: "1",
+      addressLine: "1 St",
+      zip: "43004",
+      cart: [
+        { productId, qty: 20 },
+        { productId, qty: 20 }, // merged to 40 → clamped to maxQty 30
+      ],
+    });
+    expect(order.items).toHaveLength(1);
+    expect(order.items[0].qty).toBe(30);
+  });
+
+  it("pauses online ordering when the trial has expired", async () => {
+    await db.yard.update({
+      where: { id: yardId },
+      data: { planStatus: "TRIALING", trialEndsAt: new Date(Date.now() - 864e5) },
+    });
+    await expect(
+      placeOrder({
+        yardId,
+        channel: "ONLINE",
+        customerName: "X",
+        customerPhone: "1",
+        addressLine: "1 St",
+        zip: "43004",
+        requestedDate: FUTURE_DATE,
+        cart: [{ productId, qty: 5 }],
+      })
+    ).rejects.toMatchObject({ code: "orders_paused" });
+    await db.yard.update({
+      where: { id: yardId },
+      data: { planStatus: "TRIALING", trialEndsAt: null },
+    });
   });
 
   it("rejects empty carts", async () => {

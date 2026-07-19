@@ -1,13 +1,15 @@
 import type { Order, Truck } from "@prisma/client";
 import { lineYards } from "./pricing";
+import { addDays, storedDateKey, type LocalNow } from "./tz";
 
 /**
  * Day-level capacity model (MVP):
  * A yard's daily deliverable volume = sum over active trucks of capacityYards * maxTripsPerDay.
- * An order consumes its total volume-equivalent yards (non-volume units consume a
- * conservative 1 trip-equivalent handled via MIN_ORDER_YARDS floor).
+ * An order consumes its volume-equivalent yards, floored at MIN_ORDER_YARDS so every
+ * delivery consumes at least one trip-equivalent slice of the day.
+ * All "days" are yard-local calendar keys (YYYY-MM-DD) — see lib/tz.ts.
  */
-export const MIN_ORDER_YARDS = 1; // every delivery consumes at least this much daily capacity
+export const MIN_ORDER_YARDS = 1;
 
 export function dailyCapacityYards(trucks: Pick<Truck, "capacityYards" | "maxTripsPerDay" | "active">[]): number {
   return trucks
@@ -22,14 +24,13 @@ export function orderYards(items: { unitSnap: string; qty: number }[]): number {
 
 export type DayLoad = { dateKey: string; usedYards: number; capacityYards: number; remainingYards: number };
 
-export function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 /** Orders count against the day they are scheduled for; unscheduled orders count on their requested date. */
-export function effectiveDate(order: Pick<Order, "scheduledDate" | "requestedDate" | "status">): Date | null {
+export function effectiveDateKey(
+  order: Pick<Order, "scheduledDate" | "requestedDate" | "status">
+): string | null {
   if (order.status === "CANCELED") return null;
-  return order.scheduledDate ?? order.requestedDate ?? null;
+  const d = order.scheduledDate ?? order.requestedDate;
+  return d ? storedDateKey(d) : null;
 }
 
 export function computeDayLoads(
@@ -37,22 +38,16 @@ export function computeDayLoads(
     items: { unitSnap: string; qty: number }[];
   })[],
   trucks: Pick<Truck, "capacityYards" | "maxTripsPerDay" | "active">[],
-  days: Date[]
+  dayKeys: string[]
 ): Map<string, DayLoad> {
   const capacity = dailyCapacityYards(trucks);
   const map = new Map<string, DayLoad>();
-  for (const d of days) {
-    map.set(dateKey(d), {
-      dateKey: dateKey(d),
-      usedYards: 0,
-      capacityYards: capacity,
-      remainingYards: capacity,
-    });
+  for (const key of dayKeys) {
+    map.set(key, { dateKey: key, usedYards: 0, capacityYards: capacity, remainingYards: capacity });
   }
   for (const o of orders) {
-    const d = effectiveDate(o);
-    if (!d) continue;
-    const key = dateKey(d);
+    const key = effectiveDateKey(o);
+    if (!key) continue;
     const load = map.get(key);
     if (!load) continue;
     load.usedYards += orderYards(o.items);
@@ -62,11 +57,11 @@ export function computeDayLoads(
 }
 
 /**
- * Available delivery dates for the storefront date picker.
+ * Available delivery date keys for the storefront picker, in yard-local time.
  * Applies lead time, cutoff hour, advance window, and remaining capacity.
  */
 export function availableDates(opts: {
-  now: Date;
+  now: LocalNow;
   minLeadDays: number;
   maxAdvanceDays: number;
   orderCutoffHour: number;
@@ -76,14 +71,19 @@ export function availableDates(opts: {
   const { now, minLeadDays, maxAdvanceDays, orderCutoffHour, neededYards, dayLoads } = opts;
   const out: string[] = [];
   let lead = minLeadDays;
-  if (now.getHours() >= orderCutoffHour) lead += 1;
+  if (now.hour >= orderCutoffHour) lead += 1;
   for (let i = lead; i <= maxAdvanceDays; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    const key = dateKey(d);
+    const key = addDays(now.dateKey, i);
     const load = dayLoads.get(key);
     const remaining = load ? load.remainingYards : Infinity;
     if (remaining >= Math.max(MIN_ORDER_YARDS, neededYards)) out.push(key);
   }
   return out;
+}
+
+/** Build the day-key horizon [today .. today+n] in yard-local time. */
+export function horizonKeys(now: LocalNow, days: number): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i <= days; i++) keys.push(addDays(now.dateKey, i));
+  return keys;
 }

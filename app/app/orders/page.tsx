@@ -97,7 +97,7 @@ export default async function OrdersPage(props: {
                   <div className="muted">{o.channel === "PHONE" ? "phone" : "online"}</div>
                 </td>
                 <td>
-                  {o.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {o.createdAt.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}
                 </td>
                 <td>
                   {o.customerName}
@@ -107,10 +107,7 @@ export default async function OrdersPage(props: {
                   {o.items.map((i) => `${i.qty} ${unitLabel(i.unitSnap)} ${i.nameSnap}`).join(", ")}
                 </td>
                 <td>
-                  {(o.scheduledDate ?? o.requestedDate)?.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  }) ?? "—"}
+                  {(o.scheduledDate ?? o.requestedDate)?.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) ?? "—"}
                   {o.scheduledSlot && <span className="muted"> {o.scheduledSlot}</span>}
                   <div className="muted">{o.truck?.name ?? ""}</div>
                 </td>

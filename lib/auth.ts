@@ -7,10 +7,15 @@ import { db } from "./db";
 const COOKIE_NAME = "yc_session";
 const SESSION_DAYS = 14;
 
+const DEV_SECRET_MARKER = "dev-only-secret";
+
 function secret(): Uint8Array {
   const s = process.env.SESSION_SECRET;
   if (!s || s.length < 32) {
     throw new Error("SESSION_SECRET must be set (>=32 chars)");
+  }
+  if (process.env.NODE_ENV === "production" && s.includes(DEV_SECRET_MARKER)) {
+    throw new Error("Refusing to run in production with the committed dev SESSION_SECRET — generate a real one (openssl rand -hex 32).");
   }
   return new TextEncoder().encode(s);
 }

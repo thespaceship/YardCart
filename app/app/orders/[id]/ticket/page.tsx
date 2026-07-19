@@ -32,11 +32,7 @@ export default async function TicketPage(props: { params: Promise<{ id: string }
           <div className="right">
             <h2 style={{ margin: 0 }}>Ticket #{order.number}</h2>
             <div className="muted">
-              {(order.scheduledDate ?? order.requestedDate)?.toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              })}
+              {(order.scheduledDate ?? order.requestedDate)?.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })}
               {order.scheduledSlot && ` · ${order.scheduledSlot}`}
               {order.truck && ` · ${order.truck.name}`}
             </div>

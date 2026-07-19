@@ -4,14 +4,37 @@ import {
   orderYards,
   computeDayLoads,
   availableDates,
-  dateKey,
+  horizonKeys,
 } from "@/lib/capacity";
+import { addDays, localNow, keyToStoredDate, storedDateKey } from "@/lib/tz";
 
 const trucks = [
   { capacityYards: 5, maxTripsPerDay: 6, active: true }, // 30
   { capacityYards: 14, maxTripsPerDay: 4, active: true }, // 56
   { capacityYards: 10, maxTripsPerDay: 6, active: false }, // ignored
 ];
+
+const NOW = { dateKey: "2026-07-19", hour: 8 };
+
+describe("tz helpers", () => {
+  it("adds days across month boundaries", () => {
+    expect(addDays("2026-07-31", 1)).toBe("2026-08-01");
+    expect(addDays("2026-07-01", -1)).toBe("2026-06-30");
+  });
+  it("round-trips stored dates", () => {
+    expect(storedDateKey(keyToStoredDate("2026-07-19"))).toBe("2026-07-19");
+  });
+  it("computes local date/hour for a real timezone without crashing", () => {
+    const n = localNow("America/New_York");
+    expect(n.dateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(n.hour).toBeGreaterThanOrEqual(0);
+    expect(n.hour).toBeLessThan(24);
+  });
+  it("falls back to UTC on a bad timezone", () => {
+    const n = localNow("Not/AZone");
+    expect(n.dateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
 
 describe("dailyCapacityYards", () => {
   it("sums active trucks only", () => {
@@ -29,95 +52,65 @@ describe("orderYards", () => {
 });
 
 describe("availableDates", () => {
-  const mkOrder = (dayOffset: number, yards: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + dayOffset);
-    return {
-      scheduledDate: d,
-      requestedDate: null,
-      status: "SCHEDULED",
-      items: [{ unitSnap: "cubic_yard", qty: yards }],
-    };
-  };
+  const mkOrder = (dayOffset: number, yards: number, status = "SCHEDULED") => ({
+    scheduledDate: keyToStoredDate(addDays(NOW.dateKey, dayOffset)),
+    requestedDate: null,
+    status,
+    items: [{ unitSnap: "cubic_yard", qty: yards }],
+  });
 
-  const horizon = () => {
-    const days: Date[] = [];
-    for (let i = 0; i <= 10; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  };
+  const horizon = horizonKeys(NOW, 10);
 
   it("respects lead time", () => {
-    const loads = computeDayLoads([], trucks, horizon());
-    const now = new Date();
-    now.setHours(8, 0, 0, 0); // before cutoff
+    const loads = computeDayLoads([], trucks, horizon);
     const dates = availableDates({
-      now,
+      now: NOW,
       minLeadDays: 2,
       maxAdvanceDays: 10,
       orderCutoffHour: 15,
       neededYards: 5,
       dayLoads: loads,
     });
-    const first = new Date(now);
-    first.setDate(first.getDate() + 2);
-    expect(dates[0]).toBe(dateKey(first));
+    expect(dates[0]).toBe(addDays(NOW.dateKey, 2));
   });
 
   it("pushes lead by one day after the cutoff hour", () => {
-    const loads = computeDayLoads([], trucks, horizon());
-    const now = new Date();
-    now.setHours(16, 0, 0, 0); // past 15:00 cutoff
+    const loads = computeDayLoads([], trucks, horizon);
     const dates = availableDates({
-      now,
+      now: { ...NOW, hour: 16 },
       minLeadDays: 1,
       maxAdvanceDays: 10,
       orderCutoffHour: 15,
       neededYards: 5,
       dayLoads: loads,
     });
-    const first = new Date(now);
-    first.setDate(first.getDate() + 2);
-    expect(dates[0]).toBe(dateKey(first));
+    expect(dates[0]).toBe(addDays(NOW.dateKey, 2));
   });
 
   it("excludes days without enough remaining capacity", () => {
-    // fill day+1 with 84 of 86 yards → a 5-yard order can't fit
-    const loads = computeDayLoads([mkOrder(1, 84)], trucks, horizon());
-    const now = new Date();
-    now.setHours(8, 0, 0, 0);
+    const loads = computeDayLoads([mkOrder(1, 84)], trucks, horizon);
     const dates = availableDates({
-      now,
+      now: NOW,
       minLeadDays: 1,
       maxAdvanceDays: 5,
       orderCutoffHour: 15,
       neededYards: 5,
       dayLoads: loads,
     });
-    const blocked = new Date(now);
-    blocked.setDate(blocked.getDate() + 1);
-    expect(dates).not.toContain(dateKey(blocked));
+    expect(dates).not.toContain(addDays(NOW.dateKey, 1));
     expect(dates.length).toBeGreaterThan(0);
   });
 
   it("ignores canceled orders in load computation", () => {
-    const canceled = { ...mkOrder(1, 84), status: "CANCELED" };
-    const loads = computeDayLoads([canceled], trucks, horizon());
-    const now = new Date();
-    now.setHours(8, 0, 0, 0);
+    const loads = computeDayLoads([mkOrder(1, 84, "CANCELED")], trucks, horizon);
     const dates = availableDates({
-      now,
+      now: NOW,
       minLeadDays: 1,
       maxAdvanceDays: 5,
       orderCutoffHour: 15,
       neededYards: 5,
       dayLoads: loads,
     });
-    const day1 = new Date(now);
-    day1.setDate(day1.getDate() + 1);
-    expect(dates).toContain(dateKey(day1));
+    expect(dates).toContain(addDays(NOW.dateKey, 1));
   });
 });

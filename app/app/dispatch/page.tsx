@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { orderYards, dailyCapacityYards } from "@/lib/capacity";
+import { localNow, addDays, storedDateKey } from "@/lib/tz";
 import { unitLabel } from "@/lib/money";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -15,10 +16,10 @@ export default async function DispatchPage(props: {
   const ctx = await requireYardUser();
   const { start } = await props.searchParams;
 
-  const startDate = start && /^\d{4}-\d{2}-\d{2}$/.test(start) ? new Date(`${start}T00:00:00`) : new Date();
-  startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + DAYS_SHOWN);
+  const todayKey = localNow(ctx.yard.timezone).dateKey;
+  const startKey = start && /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : todayKey;
+  const startDate = new Date(`${startKey}T00:00:00Z`);
+  const endDate = new Date(`${addDays(startKey, DAYS_SHOWN)}T00:00:00Z`);
 
   const [orders, trucks, unscheduled] = await Promise.all([
     db.order.findMany({
@@ -37,21 +38,18 @@ export default async function DispatchPage(props: {
   const capacity = dailyCapacityYards(trucks);
   const days: { date: Date; key: string }[] = [];
   for (let i = 0; i < DAYS_SHOWN; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    days.push({ date: d, key: d.toISOString().slice(0, 10) });
+    const key = addDays(startKey, i);
+    days.push({ date: new Date(`${key}T12:00:00Z`), key });
   }
   const byDay = new Map<string, typeof orders>();
   for (const o of orders) {
-    const key = o.scheduledDate!.toISOString().slice(0, 10);
+    const key = storedDateKey(o.scheduledDate!);
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key)!.push(o);
   }
 
-  const prev = new Date(startDate);
-  prev.setDate(prev.getDate() - DAYS_SHOWN);
-  const next = new Date(startDate);
-  next.setDate(next.getDate() + DAYS_SHOWN);
+  const prevKey = addDays(startKey, -DAYS_SHOWN);
+  const nextKey = addDays(startKey, DAYS_SHOWN);
 
   return (
     <div className="stack">
@@ -63,13 +61,13 @@ export default async function DispatchPage(props: {
               {unscheduled} unscheduled →
             </Link>
           )}
-          <Link className="btn secondary small" href={`/app/dispatch?start=${prev.toISOString().slice(0, 10)}`}>
+          <Link className="btn secondary small" href={`/app/dispatch?start=${prevKey}`}>
             ← Prev week
           </Link>
           <Link className="btn secondary small" href="/app/dispatch">
             Today
           </Link>
-          <Link className="btn secondary small" href={`/app/dispatch?start=${next.toISOString().slice(0, 10)}`}>
+          <Link className="btn secondary small" href={`/app/dispatch?start=${nextKey}`}>
             Next week →
           </Link>
         </div>
@@ -81,12 +79,12 @@ export default async function DispatchPage(props: {
           .filter((o) => o.status !== "CANCELED")
           .reduce((s, o) => s + orderYards(o.items), 0);
         const pct = capacity > 0 ? Math.min(100, (used / capacity) * 100) : 0;
-        const isToday = key === new Date().toISOString().slice(0, 10);
+        const isToday = key === todayKey;
         return (
           <div className="card" key={key} style={isToday ? { borderColor: "var(--brand)" } : undefined}>
             <div className="spread">
               <h3 style={{ margin: 0 }}>
-                {date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                {date.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "short", day: "numeric" })}
                 {isToday && <span className="badge scheduled" style={{ marginLeft: 8 }}>Today</span>}
               </h3>
               <span className="muted">

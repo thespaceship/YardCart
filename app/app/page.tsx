@@ -3,23 +3,20 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
 import { computeDayLoads, orderYards } from "@/lib/capacity";
+import { localNow, addDays } from "@/lib/tz";
 import StatusBadge from "@/components/StatusBadge";
 
 export const metadata = { title: "Today" };
 
-function dayRange(offset: number): { start: Date; end: Date } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() + offset);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-}
-
 export default async function OverviewPage() {
   const { yard } = await requireYardUser();
 
-  const today = dayRange(0);
+  // "today" in the yard's own timezone; order dates are stored as UTC-noon calendar dates
+  const now = localNow(yard.timezone);
+  const today = {
+    start: new Date(`${now.dateKey}T00:00:00Z`),
+    end: new Date(`${addDays(now.dateKey, 1)}T00:00:00Z`),
+  };
   const [newOrders, todaysOrders, trucks, weekDelivered] = await Promise.all([
     db.order.findMany({
       where: { yardId: yard.id, status: "NEW" },
@@ -48,12 +45,8 @@ export default async function OverviewPage() {
     }),
   ]);
 
-  const loads = computeDayLoads(
-    todaysOrders,
-    trucks,
-    [today.start]
-  );
-  const load = loads.values().next().value;
+  const loads = computeDayLoads(todaysOrders, trucks, [now.dateKey]);
+  const load = loads.get(now.dateKey);
   const pct = load && load.capacityYards > 0 ? Math.min(100, (load.usedYards / load.capacityYards) * 100) : 0;
 
   return (
@@ -137,7 +130,7 @@ export default async function OverviewPage() {
                   </td>
                   <td>
                     {o.requestedDate
-                      ? o.requestedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                      ? o.requestedDate.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
                       : "—"}
                   </td>
                   <td>{formatCents(o.totalCents)}</td>

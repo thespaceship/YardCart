@@ -23,7 +23,11 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(url);
   }
 
-  // MOCK mode: flip plan, record TEST invoice
+  // MOCK mode: flip plan, record TEST invoice. Disabled in production unless the
+  // owner explicitly opts in (prevents free self-activation if Stripe keys are missing).
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_MOCK_BILLING !== "1") {
+    throw new Error("Billing is not configured yet — contact support.");
+  }
   const now = new Date();
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);

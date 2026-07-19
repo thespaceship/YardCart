@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logout } from "@/app/actions/auth";
+import { yardActive } from "@/lib/billing";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -44,6 +45,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </form>
       </nav>
       <main className="container" style={{ paddingTop: 24, paddingBottom: 64 }}>
+        {yard && !yardActive(yard) && (
+          <div className="alert error no-print" style={{ marginBottom: 16 }}>
+            Your {yard.planStatus === "TRIALING" ? "free trial has ended" : "subscription is inactive"} —
+            your storefront is paused and not taking online orders.{" "}
+            <Link href="/app/billing">Choose a plan</Link> to turn it back on.
+          </div>
+        )}
         {children}
       </main>
     </div>

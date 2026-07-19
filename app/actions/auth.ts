@@ -51,6 +51,10 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Email and password are required." };
+  // per-account limiter so a spoofed client IP can't brute-force one mailbox
+  if (!rateLimit(`login-email:${email}`, { limit: 10, windowMs: 15 * 60 * 1000 })) {
+    return { error: "Too many attempts for this account. Try again in a few minutes." };
+  }
 
   const user = await db.user.findUnique({ where: { email } });
   // constant-shape response to avoid user enumeration

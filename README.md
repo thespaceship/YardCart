@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YardCart
 
-## Getting Started
+Online ordering + dispatch software for bulk landscape-material suppliers (mulch, topsoil,
+compost, firewood). Customers order on a yard's hosted storefront with instant ZIP-based
+delivery pricing; the yard schedules, dispatches, and prints delivery tickets.
 
-First, run the development server:
+**Positioning:** flat monthly price, no per-order fees (vs. incumbent's $0/mo + 2.5%/order).
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx prisma migrate dev   # creates dev.db (SQLite)
+npx prisma db seed       # seeds the synthetic demo yard
+npm run dev              # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Demo login:** `demo@yardcart.test` / `demo-password-123`
+**Demo storefront:** http://localhost:3000/s/cedar-ridge-demo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What's where
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Path | Purpose |
+| --- | --- |
+| `app/page.tsx`, `app/pricing`, `app/privacy`, `app/security` | Marketing site |
+| `app/(auth)` | Login / signup |
+| `app/s/[slug]` | Public storefront (catalog, calculator, ZIP quote, checkout) |
+| `app/app/*` | Yard dashboard (orders, dispatch, products, zones, trucks, reports, mailbox, billing, settings, onboarding) |
+| `app/api/storefront/*` | Public quote + order APIs (rate-limited, honeypot) |
+| `app/api/stripe/webhook` | Stripe webhook (inactive without env keys) |
+| `lib/` | Domain logic: pricing, zones, capacity, orders, auth, mailer, billing, observability |
+| `prisma/` | Schema, migrations, demo seed |
+| `tests/` | Vitest unit + integration tests (`npm test`) |
 
-## Learn More
+## Test modes (no external accounts needed)
 
-To learn more about Next.js, take a look at the following resources:
+- **Email:** without `RESEND_API_KEY`, all outbound email is captured to the in-app
+  Mailbox (`/app/mailbox`) instead of being sent.
+- **Billing:** without `STRIPE_SECRET_KEY`, checkout is simulated — plan flips and a
+  clearly-marked TEST invoice is recorded. With keys, real Stripe Checkout (test or live
+  mode per key) + webhook activation.
+- **Analytics / errors:** first-party `EventLog` / `ErrorLog` tables; Sentry/Plausible
+  optional via env.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See `.env` (dev defaults included). Production requires `SESSION_SECRET` (32+ chars),
+`DATABASE_URL`, `APP_URL`; optional `RESEND_API_KEY`, `EMAIL_FROM`, `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`.
 
-## Deploy on Vercel
+## Docs
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — data model, capacity model, auth, decisions
+- [docs/DEPLOY.md](docs/DEPLOY.md) — production deployment runbook
+- [docs/TESTING.md](docs/TESTING.md) — test strategy and manual QA script
+- Business package: `../../ops/` (ICP, GTM, prospects, budget, risks, owner checklist)

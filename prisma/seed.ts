@@ -68,7 +68,7 @@ async function main() {
     { name: "Leaf Compost", category: "compost", unit: "cubic_yard", priceCents: 3600, sortOrder: 6, description: "Fully composted leaf humus." },
     { name: "Seasoned Firewood (Face Cord)", category: "firewood", unit: "face_cord", priceCents: 14500, sortOrder: 7, description: "Mixed hardwood, 16\" splits." },
   ];
-  const products = [];
+  const products: Awaited<ReturnType<typeof db.product.create>>[] = [];
   for (const p of productData) {
     products.push(await db.product.create({ data: { ...p, yardId: yard.id } }));
   }

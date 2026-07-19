@@ -20,5 +20,7 @@ export function rateLimit(key: string, opts: { limit: number; windowMs: number }
 // prevent unbounded growth
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of buckets) if (v.resetAt < now) buckets.delete(k);
+  buckets.forEach((v, k) => {
+    if (v.resetAt < now) buckets.delete(k);
+  });
 }, 60_000).unref?.();

@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite for local/demo; switch provider+url to postgres for production (see DEPLOY.md)
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("OWNER") // OWNER | STAFF
+  yardId       String?
+  yard         Yard?    @relation(fields: [yardId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Yard {
+  id                 String    @id @default(cuid())
+  name               String
+  slug               String    @unique
+  phone              String    @default("")
+  email              String    @default("")
+  addressLine        String    @default("")
+  city               String    @default("")
+  state              String    @default("")
+  zip                String    @default("")
+  aboutText          String    @default("")
+  // ordering settings
+  minLeadDays        Int       @default(1) // earliest delivery = today + minLeadDays
+  maxAdvanceDays     Int       @default(30)
+  orderCutoffHour    Int       @default(15) // local hour after which "tomorrow" is unavailable
+  acceptOnlineOrders Boolean   @default(true)
+  paymentOnDelivery  Boolean   @default(true) // accept pay-on-delivery
+  // billing
+  plan               String    @default("TRIAL") // TRIAL | STARTER | PRO | MULTI
+  planStatus         String    @default("TRIALING") // TRIALING | ACTIVE | PAST_DUE | CANCELED
+  trialEndsAt        DateTime?
+  stripeCustomerId   String?
+  onboardedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  users    User[]
+  products Product[]
+  zones    Zone[]
+  trucks   Truck[]
+  orders   Order[]
+  invoices Invoice[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  yardId      String
+  yard        Yard        @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  name        String
+  category    String      @default("mulch") // mulch | soil | compost | stone | firewood | other
+  description String      @default("")
+  unit        String      @default("cubic_yard") // cubic_yard | half_yard | bag | cord | face_cord | ton
+  priceCents  Int
+  minQty      Float       @default(1)
+  maxQty      Float       @default(30)
+  qtyStep     Float       @default(0.5)
+  active      Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+}
+
+model Zone {
+  id               String   @id @default(cuid())
+  yardId           String
+  yard             Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  name             String
+  zipCodes         String   // JSON array of ZIP strings
+  deliveryFeeCents Int
+  minOrderCents    Int      @default(0)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  orders           Order[]
+}
+
+model Truck {
+  id            String   @id @default(cuid())
+  yardId        String
+  yard          Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  name          String
+  capacityYards Float    @default(10)
+  maxTripsPerDay Int     @default(6)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  orders        Order[]
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  yardId         String
+  yard           Yard        @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  number         Int // per-yard sequential display number
+  channel        String      @default("ONLINE") // ONLINE | PHONE
+  status         String      @default("NEW") // NEW | SCHEDULED | OUT_FOR_DELIVERY | DELIVERED | CANCELED
+  customerName   String
+  customerPhone  String
+  customerEmail  String      @default("")
+  addressLine    String
+  city           String      @default("")
+  zip            String
+  zoneId         String?
+  zone           Zone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  placementNotes String      @default("") // customer instructions ("dump on left side of driveway")
+  internalNotes  String      @default("")
+  materialCents  Int
+  deliveryCents  Int
+  totalCents     Int
+  paymentStatus  String      @default("UNPAID") // UNPAID | PAY_ON_DELIVERY | PAID
+  paymentMethod  String      @default("") // cash | check | card | online_test
+  requestedDate  DateTime? // customer's requested delivery date
+  scheduledDate  DateTime? // confirmed dispatch date
+  scheduledSlot  String      @default("") // AM | PM | ""
+  truckId        String?
+  truck          Truck?      @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  driverName     String      @default("")
+  deliveredAt    DateTime?
+  canceledAt     DateTime?
+  cancelReason   String      @default("")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+
+  @@unique([yardId, number])
+  @@index([yardId, status])
+  @@index([yardId, scheduledDate])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  nameSnap   String // product name at time of order
+  unitSnap   String
+  qty        Float
+  unitCents  Int
+  totalCents Int
+}
+
+// Test-mode outbound email mailbox (viewable in app; swap to Resend/SendGrid via env)
+model EmailLog {
+  id        String   @id @default(cuid())
+  yardId    String?
+  toEmail   String
+  subject   String
+  html      String
+  kind      String // order_confirmation | new_order_alert | scheduled | delivered | auth | billing
+  sentVia   String   @default("TEST_MAILBOX") // TEST_MAILBOX | RESEND
+  createdAt DateTime @default(now())
+
+  @@index([yardId, createdAt])
+}
+
+// Lightweight first-party analytics
+model EventLog {
+  id        String   @id @default(cuid())
+  yardId    String?
+  type      String // storefront_view | order_placed | signup | onboarded | login | checkout_started ...
+  meta      String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([yardId, createdAt])
+}
+
+// Server error monitoring (first-party; Sentry optional via env)
+model ErrorLog {
+  id        String   @id @default(cuid())
+  where     String
+  message   String
+  stack     String   @default("")
+  createdAt DateTime @default(now())
+}
+
+// Billing records (test mode)
+model Invoice {
+  id          String   @id @default(cuid())
+  yardId      String
+  yard        Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  amountCents Int
+  plan        String
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String   @default("TEST_PAID") // TEST_PAID | PAID | VOID
+  provider    String   @default("MOCK") // MOCK | STRIPE_TEST | STRIPE
+  externalId  String   @default("")
+  createdAt   DateTime @default(now())
+}

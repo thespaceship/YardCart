@@ -1,6 +1,6 @@
 import type { Order, Truck } from "@prisma/client";
 import { lineYards } from "./pricing";
-import { addDays, storedDateKey, type LocalNow } from "./tz";
+import { addDays, dayOfWeek, storedDateKey, type LocalNow } from "./tz";
 
 /**
  * Day-level capacity model (MVP):
@@ -67,13 +67,15 @@ export function availableDates(opts: {
   orderCutoffHour: number;
   neededYards: number;
   dayLoads: Map<string, DayLoad>;
+  deliveryDays?: number[];
 }): string[] {
-  const { now, minLeadDays, maxAdvanceDays, orderCutoffHour, neededYards, dayLoads } = opts;
+  const { now, minLeadDays, maxAdvanceDays, orderCutoffHour, neededYards, dayLoads, deliveryDays } = opts;
   const out: string[] = [];
   let lead = minLeadDays;
   if (now.hour >= orderCutoffHour) lead += 1;
   for (let i = lead; i <= maxAdvanceDays; i++) {
     const key = addDays(now.dateKey, i);
+    if (deliveryDays && deliveryDays.length > 0 && !deliveryDays.includes(dayOfWeek(key))) continue;
     const load = dayLoads.get(key);
     const remaining = load ? load.remainingYards : Infinity;
     if (remaining >= Math.max(MIN_ORDER_YARDS, neededYards)) out.push(key);

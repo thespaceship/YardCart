@@ -6,7 +6,7 @@ import {
   availableDates,
   horizonKeys,
 } from "@/lib/capacity";
-import { addDays, localNow, keyToStoredDate, storedDateKey } from "@/lib/tz";
+import { addDays, dayOfWeek, localNow, keyToStoredDate, storedDateKey } from "@/lib/tz";
 
 const trucks = [
   { capacityYards: 5, maxTripsPerDay: 6, active: true }, // 30
@@ -33,6 +33,10 @@ describe("tz helpers", () => {
   it("falls back to UTC on a bad timezone", () => {
     const n = localNow("Not/AZone");
     expect(n.dateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+  it("computes day of week", () => {
+    expect(dayOfWeek("2026-07-19")).toBe(0); // Sunday
+    expect(dayOfWeek("2026-07-20")).toBe(1); // Monday
   });
 });
 
@@ -112,5 +116,47 @@ describe("availableDates", () => {
       dayLoads: loads,
     });
     expect(dates).toContain(addDays(NOW.dateKey, 1));
+  });
+
+  it("excludes days closed by deliveryDays (weekends off)", () => {
+    // NOW.dateKey (2026-07-19) is a Sunday; Mon-Fri only = [1,2,3,4,5]
+    const loads = computeDayLoads([], trucks, horizon);
+    const dates = availableDates({
+      now: NOW,
+      minLeadDays: 1,
+      maxAdvanceDays: 10,
+      orderCutoffHour: 15,
+      neededYards: 5,
+      dayLoads: loads,
+      deliveryDays: [1, 2, 3, 4, 5],
+    });
+    for (const key of dates) {
+      const dow = new Date(`${key}T12:00:00Z`).getUTCDay();
+      expect(dow).not.toBe(0);
+      expect(dow).not.toBe(6);
+    }
+    expect(dates.length).toBeGreaterThan(0);
+  });
+
+  it("treats an empty or omitted deliveryDays as no restriction", () => {
+    const loads = computeDayLoads([], trucks, horizon);
+    const withoutOpt = availableDates({
+      now: NOW,
+      minLeadDays: 1,
+      maxAdvanceDays: 10,
+      orderCutoffHour: 15,
+      neededYards: 5,
+      dayLoads: loads,
+    });
+    const withEmpty = availableDates({
+      now: NOW,
+      minLeadDays: 1,
+      maxAdvanceDays: 10,
+      orderCutoffHour: 15,
+      neededYards: 5,
+      dayLoads: loads,
+      deliveryDays: [],
+    });
+    expect(withEmpty).toEqual(withoutOpt);
   });
 });

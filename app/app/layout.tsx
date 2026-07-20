@@ -54,6 +54,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         )}
         {children}
       </main>
+      <div className="container">
+        <footer className="mfooter no-print">
+          <div className="spread">
+            <span>© {new Date().getFullYear()} YardCart</span>
+            <span>
+              <Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
+              <Link href="/security">Security</Link>
+            </span>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

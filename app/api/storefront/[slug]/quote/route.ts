@@ -64,6 +64,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
       orderCutoffHour: yard.orderCutoffHour,
       neededYards: priced.totalYards,
       dayLoads: loads,
+      deliveryDays: yard.deliveryDays,
     });
 
     return NextResponse.json({

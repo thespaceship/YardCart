@@ -35,6 +35,11 @@ export function addDays(dateKey: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Day of week for a YYYY-MM-DD key: 0=Sun..6=Sat (UTC-noon, so it's DST-proof). */
+export function dayOfWeek(dateKey: string): number {
+  return new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+}
+
 /** Calendar date key of a stored UTC-noon order date. */
 export function storedDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);

@@ -6,6 +6,8 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
+import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
+import { rateLimit } from "@/lib/ratelimit";
 
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
@@ -128,7 +130,39 @@ export async function updateSettings(formData: FormData): Promise<void> {
       orderCutoffHour: Math.min(23, Math.max(0, parseInt(String(formData.get("orderCutoffHour") ?? "15")) || 15)),
       acceptOnlineOrders: formData.get("acceptOnlineOrders") === "on",
       paymentOnDelivery: formData.get("paymentOnDelivery") === "on",
+      deliveryDays: formData
+        .getAll("deliveryDays")
+        .map((d) => parseInt(String(d)))
+        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
     },
   });
   revalidatePath("/app", "layout");
+  redirect("/app/settings?saved=1");
+}
+
+// ---------- Support ----------
+
+export async function sendSupportMessage(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  if (!rateLimit(`support:${ctx.yard.id}`, { limit: 5, windowMs: 60 * 60 * 1000 })) {
+    throw new Error("Too many support requests. Try again later.");
+  }
+  const subject = String(formData.get("subject") ?? "").trim().slice(0, 160) || "Support request";
+  const message = String(formData.get("message") ?? "").trim().slice(0, 5000);
+  if (!message) throw new Error("Please enter a message.");
+
+  await sendEmail({
+    yardId: ctx.yard.id,
+    to: "support@getyardcart.com",
+    kind: "support_request",
+    subject: `[Support] ${subject} — ${ctx.yard.name}`,
+    html: emailShell(
+      "New support request",
+      `<p><strong>Yard:</strong> ${escapeHtml(ctx.yard.name)}<br>
+       <strong>From:</strong> ${escapeHtml(ctx.user.name)} (${escapeHtml(ctx.user.email)})</p>
+       <p style="white-space:pre-wrap">${escapeHtml(message)}</p>`
+    ),
+  });
+  revalidatePath("/app/settings");
+  redirect("/app/settings?supportSent=1");
 }

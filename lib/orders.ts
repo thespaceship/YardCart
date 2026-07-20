@@ -105,6 +105,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       orderCutoffHour: yard.orderCutoffHour,
       neededYards: priced.totalYards,
       dayLoads: loads,
+      deliveryDays: yard.deliveryDays,
     });
     if (!ok.includes(input.requestedDate)) {
       throw new OrderError(

@@ -37,6 +37,7 @@ model Yard {
   orderCutoffHour    Int       @default(15) // local hour after which "tomorrow" is unavailable
   acceptOnlineOrders Boolean   @default(true)
   paymentOnDelivery  Boolean   @default(true) // accept pay-on-delivery
+  deliveryDays       Int[]     @default([0, 1, 2, 3, 4, 5, 6]) // days open for delivery, 0=Sun..6=Sat
   // billing
   plan               String    @default("TRIAL") // TRIAL | STARTER | PRO | MULTI
   planStatus         String    @default("TRIALING") // TRIALING | ACTIVE | PAST_DUE | CANCELED

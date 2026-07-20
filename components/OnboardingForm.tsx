@@ -90,7 +90,7 @@ export default function OnboardingForm({
           </div>
           <div>
             <label>Delivery fee ($)</label>
-            <input name="deliveryFee" required inputMode="decimal" placeholder="45" />
+            <input name="deliveryFee" required inputMode="decimal" defaultValue="45" />
           </div>
           <div>
             <label>Minimum order ($, optional)</label>

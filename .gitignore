@@ -35,3 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# local sqlite databases (app runs on Postgres; these are dev/test scratch files)
+*.db
+*.db-journal

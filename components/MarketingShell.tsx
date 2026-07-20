@@ -24,8 +24,8 @@ export default function MarketingShell({ children }: { children: React.ReactNode
           <div className="spread">
             <span>© {new Date().getFullYear()} YardCart</span>
             <span>
-              <Link href="/privacy">Privacy</Link> · <Link href="/security">Security</Link> ·{" "}
-              <Link href="/pricing">Pricing</Link>
+              <Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
+              <Link href="/security">Security</Link> · <Link href="/pricing">Pricing</Link>
             </span>
           </div>
         </footer>

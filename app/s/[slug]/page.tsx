@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { yardActive } from "@/lib/billing";
+import { isDemoSlug, DEMO_SAMPLE_ZIP } from "@/lib/demo";
 import { trackEvent } from "@/lib/observability";
 import Storefront from "@/components/Storefront";
 
@@ -10,6 +11,13 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   const { slug } = await props.params;
   const yard = await db.yard.findUnique({ where: { slug }, select: { name: true, city: true, state: true } });
   if (!yard) return { title: "Not found" };
+  if (isDemoSlug(slug)) {
+    return {
+      title: `YardCart live demo — ${yard.name} (fictional yard)`,
+      description:
+        "Interactive demo of a YardCart ordering page. Cedar Ridge is a fictional yard — browse, get delivery quotes, and place a simulated order.",
+    };
+  }
   return {
     title: `${yard.name} — Bulk delivery, order online`,
     description: `Order bulk mulch, topsoil, and more from ${yard.name}${yard.city ? ` in ${yard.city}, ${yard.state}` : ""}. Instant delivery pricing by ZIP code.`,
@@ -25,6 +33,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
     },
   });
   if (!yard) notFound();
+  const demo = isDemoSlug(slug);
   await trackEvent("storefront_view", { yardId: yard.id });
 
   const products = yard.products.map((p) => ({
@@ -41,6 +50,18 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+      {demo && (
+        <div style={{ background: "var(--warn-soft)", color: "var(--warn)", borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
+          <div className="container" style={{ fontSize: "0.92rem" }}>
+            <strong>Live demo</strong> — Cedar Ridge is a fictional yard. Explore everything, even
+            checkout: orders here are simulated, so nothing real is placed and no emails are sent.
+            Use ZIP <strong>{DEMO_SAMPLE_ZIP}</strong> to see delivery pricing.{" "}
+            <Link href="/signup" style={{ fontWeight: 700 }}>
+              Want this for your yard? Start a free trial →
+            </Link>
+          </div>
+        </div>
+      )}
       <header style={{ background: "var(--brand)", color: "#fff", padding: "28px 0" }}>
         <div className="container">
           <h1 style={{ margin: 0 }}>{yard.name}</h1>
@@ -63,7 +84,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
             order.
           </div>
         ) : (
-          <Storefront slug={yard.slug} yardName={yard.name} yardPhone={yard.phone} products={products} />
+          <Storefront slug={yard.slug} yardName={yard.name} yardPhone={yard.phone} products={products} isDemo={demo} />
         )}
         <footer className="mfooter" style={{ marginTop: 48 }}>
           Online ordering powered by <Link href="/">YardCart</Link>

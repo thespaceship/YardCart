@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { db } from "@/lib/db";
 import { placeOrder, OrderError } from "@/lib/orders";
 
@@ -41,6 +41,16 @@ beforeAll(async () => {
   });
   yardId = yard.id;
   productId = yard.products[0].id;
+});
+
+// The suite runs against a shared (dev-branch) database, so remove everything it created.
+// Yard deletion cascades to products/zones/trucks/orders; EmailLog and EventLog have no
+// FK relation and are cleaned up explicitly.
+afterAll(async () => {
+  if (!yardId) return;
+  await db.emailLog.deleteMany({ where: { yardId } });
+  await db.eventLog.deleteMany({ where: { yardId } });
+  await db.yard.delete({ where: { id: yardId } });
 });
 
 describe("placeOrder integration", () => {

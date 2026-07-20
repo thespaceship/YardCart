@@ -23,8 +23,12 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
 3. **Deploy:** connect the git repo to Vercel; build command `next build` (default).
 4. **Stripe webhook:** add endpoint `https://<domain>/api/stripe/webhook` for
    `checkout.session.completed`; copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
-5. **Seed nothing in production.** The demo yard is for local/demo only. Create the first
-   real yard through /signup.
+5. **Demo storefront:** run `DATABASE_URL="<neon url>" npm run seed:demo` once to create
+   the public demo yard (`/s/cedar-ridge-demo`). This prod-safe seed creates the
+   storefront only — no login user, no yard email, no fake orders — and checkout against
+   it is simulated server-side (no order rows, no emails; see `lib/demo.ts`). Do **not**
+   run the full local seed (`npm run seed` / `prisma/seed.ts`) against production.
+   Create the first real yard through /signup.
 6. **Backups:** Neon has PITR on free tier; additionally schedule a weekly `pg_dump`
    (GitHub Action cron) to private storage.
 7. **Smoke test (prod):** signup → onboarding → storefront order with a test ZIP →
@@ -36,4 +40,5 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
 - [ ] Auth pages behind HTTPS only (Vercel default)
 - [ ] `npm audit` reviewed (2 known moderate dev-time advisories documented in TESTING.md)
 - [ ] Rate limits verified in prod (single instance) — move to Upstash if scaling out
-- [ ] Privacy page contact email replaced with a real monitored address
+- [x] Privacy/Terms contact email set to support@getyardcart.com and security page to
+      security@getyardcart.com — **create both aliases (forwarding is fine) and monitor them**

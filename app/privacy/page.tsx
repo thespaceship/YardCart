@@ -7,7 +7,7 @@ export default function PrivacyPage() {
     <MarketingShell>
       <div className="container" style={{ maxWidth: 720, paddingTop: 32 }}>
         <h1>Privacy Policy</h1>
-        <p className="muted">Last updated: July 2026 · Draft — to be reviewed before public launch.</p>
+        <p className="muted">Last updated: July 19, 2026</p>
         <h3>What we collect</h3>
         <p>
           Account data (your name, email, business details), catalog and order data you and your
@@ -30,7 +30,10 @@ export default function PrivacyPage() {
           associated data.
         </p>
         <h3>Contact</h3>
-        <p>privacy@yardcart.example — replace with the production support address at launch.</p>
+        <p>
+          Privacy questions or deletion requests?{" "}
+          <a href="mailto:support@getyardcart.com">support@getyardcart.com</a>
+        </p>
       </div>
     </MarketingShell>
   );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isDemoSlug } from "@/lib/demo";
 import { placeOrder, OrderError } from "@/lib/orders";
 import { rateLimit } from "@/lib/ratelimit";
 import { logError } from "@/lib/observability";
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     if (parsed.data.website) {
       // honeypot filled → likely bot; pretend success without creating anything
       return NextResponse.json({ ok: true, orderId: "ok" });
+    }
+    if (isDemoSlug(slug)) {
+      // Demo storefront: checkout is simulated — no order row, no emails. The client
+      // shows a "no real order was placed" confirmation when it sees demo: true.
+      return NextResponse.json({ ok: true, demo: true });
     }
 
     const yard = await db.yard.findUnique({ where: { slug }, select: { id: true } });

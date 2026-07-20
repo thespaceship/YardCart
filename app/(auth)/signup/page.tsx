@@ -18,6 +18,10 @@ export default async function SignupPage() {
           about 10 minutes.
         </p>
         <AuthForm action={signup} mode="signup" />
+        <p className="muted" style={{ marginTop: 12, marginBottom: 0, fontSize: "0.85rem" }}>
+          By creating an account you agree to the <Link href="/terms">Terms of Service</Link> and{" "}
+          <Link href="/privacy">Privacy Policy</Link>.
+        </p>
       </div>
       <p className="muted" style={{ textAlign: "center", marginTop: 16 }}>
         Already have an account? <Link href="/login">Log in</Link>

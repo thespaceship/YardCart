@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { isDemoSlug } from "./demo";
 import { priceCart, type CartLine } from "./pricing";
 import { matchZone } from "./zones";
 import { sendEmail, emailShell, escapeHtml } from "./mailer";
@@ -50,6 +51,11 @@ export async function placeOrder(input: PlaceOrderInput) {
     },
   });
   if (!yard) throw new OrderError("yard_not_found", "Yard not found");
+  // Belt-and-suspenders: the storefront API already short-circuits demo checkouts with a
+  // simulated success, so a real order against the demo yard must never reach this point.
+  if (input.channel === "ONLINE" && isDemoSlug(yard.slug)) {
+    throw new OrderError("demo_yard", "This is a demo storefront — orders here are simulated.");
+  }
   if (input.channel === "ONLINE" && !yard.acceptOnlineOrders) {
     throw new OrderError("orders_paused", "This yard is not accepting online orders right now.");
   }

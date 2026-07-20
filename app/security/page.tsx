@@ -18,7 +18,9 @@ export default function SecurityPage() {
           <li>Daily database backups in production.</li>
         </ul>
         <p>
-          Found a vulnerability? Email security@yardcart.example — we respond within 48 hours.
+          Found a vulnerability? Email{" "}
+          <a href="mailto:security@getyardcart.com">security@getyardcart.com</a> — we respond
+          within 48 hours.
         </p>
       </div>
     </MarketingShell>

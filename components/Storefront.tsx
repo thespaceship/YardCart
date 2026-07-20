@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type PublicProduct = {
@@ -60,13 +61,16 @@ export default function Storefront({
   yardName,
   yardPhone,
   products,
+  isDemo = false,
 }: {
   slug: string;
   yardName: string;
   yardPhone: string;
   products: PublicProduct[];
+  isDemo?: boolean;
 }) {
   const router = useRouter();
+  const [demoPlaced, setDemoPlaced] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [zip, setZip] = useState("");
   const [zipChecked, setZipChecked] = useState(false);
@@ -181,6 +185,9 @@ export default function Storefront({
       const data = await res.json();
       if (!res.ok) {
         setPlaceError(data.message ?? "Could not place your order.");
+      } else if (data.demo) {
+        setDemoPlaced(true);
+        checkoutRef.current?.scrollIntoView({ behavior: "smooth" });
       } else {
         router.push(`/s/${slug}/thanks/${data.orderId}`);
       }
@@ -280,6 +287,25 @@ export default function Storefront({
 
       {/* Delivery check + checkout */}
       <div className="card" ref={checkoutRef}>
+        {demoPlaced ? (
+          <>
+            <h2>Order placed — demo complete 🎉</h2>
+            <div className="alert ok">
+              <strong>No real order was created and no emails were sent.</strong> On a real
+              storefront, your customer would now see a confirmation page and get an email — and
+              the order would land on your dispatch board, ready to schedule onto a truck.
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+              <Link href="/signup" className="btn">
+                Start your free 14-day trial
+              </Link>
+              <button type="button" className="btn secondary" onClick={() => setDemoPlaced(false)}>
+                Back to the demo
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
         <h2>Delivery</h2>
         {cartCount === 0 ? (
           <p className="muted">Add materials above to check delivery pricing for your address.</p>
@@ -441,13 +467,17 @@ export default function Storefront({
                           : `Place order — ${usd(quote.priced.totalCents)} (pay on delivery)`}
                       </button>
                       <p className="muted" style={{ marginTop: 8, textAlign: "center" }}>
-                        No payment now. {yardName} will confirm your delivery date.
+                        {isDemo
+                          ? "Demo mode — the order is simulated. Nothing real is placed and no emails are sent."
+                          : `No payment now. ${yardName} will confirm your delivery date.`}
                       </p>
                     </div>
                   </form>
                 )}
               </>
             )}
+          </>
+        )}
           </>
         )}
       </div>

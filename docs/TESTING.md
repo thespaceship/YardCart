@@ -6,12 +6,21 @@
   inactive/unknown product handling, null-zone phone orders.
 - `tests/capacity.test.ts` — daily capacity, order volume floors, lead time, cutoff-hour
   shift, capacity exclusion, canceled-order exclusion.
-- `tests/orders.integration.test.ts` — full placeOrder against a scratch SQLite DB:
+- `tests/orders.integration.test.ts` — full placeOrder against a real Postgres DB:
   totals, per-yard sequential numbering, out-of-area rejection (online) vs. allowance
   (phone), minimum enforcement, empty cart, paused ordering. Verifies confirmation +
   alert emails land in EmailLog.
 
-30 tests. The suite creates `prisma/test.db` via `prisma db push` and removes it after.
+38 tests.
+
+### Database setup (Postgres, since the production Neon switch)
+Local dev and tests both need a Postgres connection string — **never production**.
+Create an isolated Neon branch of the production database (Neon console → Branches →
+Create Branch, from `main`, e.g. named `dev`) and put its connection string in `.env`
+as `DATABASE_URL`. Tests use `TEST_DATABASE_URL` if set, otherwise `DATABASE_URL`
+(loaded from `.env`); the global setup runs `prisma db push` against it, and the suite
+creates uniquely-named yards and deletes them afterward, so sharing the dev branch is
+safe — the database is never wiped.
 
 ## Manual QA script (verified 2026-07-19 in live browser session)
 1. Landing page renders; demo link works.

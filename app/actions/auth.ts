@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { trackEvent } from "@/lib/observability";
+import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 
 export type AuthState = { error?: string };
 
@@ -40,6 +41,17 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
     data: { name, email, passwordHash: await hashPassword(password), role: "OWNER" },
   });
   await trackEvent("signup", { meta: { userId: user.id } });
+  if (process.env.OWNER_EMAIL) {
+    await sendEmail({
+      to: process.env.OWNER_EMAIL,
+      subject: `New YardCart signup: ${name}`,
+      kind: "owner_signup_notice",
+      html: emailShell(
+        "New signup",
+        `<p>${escapeHtml(name)} (${escapeHtml(email)}) just created an account.</p>`
+      ),
+    });
+  }
   await createSession(user.id);
   redirect("/app/onboarding");
 }

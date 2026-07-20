@@ -1,19 +1,20 @@
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'OWNER',
     "yardId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "User_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Yard" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "phone" TEXT NOT NULL DEFAULT '',
@@ -23,6 +24,7 @@ CREATE TABLE "Yard" (
     "state" TEXT NOT NULL DEFAULT '',
     "zip" TEXT NOT NULL DEFAULT '',
     "aboutText" TEXT NOT NULL DEFAULT '',
+    "timezone" TEXT NOT NULL DEFAULT 'America/New_York',
     "minLeadDays" INTEGER NOT NULL DEFAULT 1,
     "maxAdvanceDays" INTEGER NOT NULL DEFAULT 30,
     "orderCutoffHour" INTEGER NOT NULL DEFAULT 15,
@@ -30,61 +32,66 @@ CREATE TABLE "Yard" (
     "paymentOnDelivery" BOOLEAN NOT NULL DEFAULT true,
     "plan" TEXT NOT NULL DEFAULT 'TRIAL',
     "planStatus" TEXT NOT NULL DEFAULT 'TRIALING',
-    "trialEndsAt" DATETIME,
+    "trialEndsAt" TIMESTAMP(3),
     "stripeCustomerId" TEXT,
-    "onboardedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "onboardedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Yard_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Product" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "category" TEXT NOT NULL DEFAULT 'mulch',
     "description" TEXT NOT NULL DEFAULT '',
     "unit" TEXT NOT NULL DEFAULT 'cubic_yard',
     "priceCents" INTEGER NOT NULL,
-    "minQty" REAL NOT NULL DEFAULT 1,
-    "maxQty" REAL NOT NULL DEFAULT 30,
-    "qtyStep" REAL NOT NULL DEFAULT 0.5,
+    "minQty" DOUBLE PRECISION NOT NULL DEFAULT 1,
+    "maxQty" DOUBLE PRECISION NOT NULL DEFAULT 30,
+    "qtyStep" DOUBLE PRECISION NOT NULL DEFAULT 0.5,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Product_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Zone" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "zipCodes" TEXT NOT NULL,
     "deliveryFeeCents" INTEGER NOT NULL,
     "minOrderCents" INTEGER NOT NULL DEFAULT 0,
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Zone_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Zone_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Truck" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "capacityYards" REAL NOT NULL DEFAULT 10,
+    "capacityYards" DOUBLE PRECISION NOT NULL DEFAULT 10,
     "maxTripsPerDay" INTEGER NOT NULL DEFAULT 6,
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Truck_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Truck_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Order" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
     "channel" TEXT NOT NULL DEFAULT 'ONLINE',
@@ -103,78 +110,84 @@ CREATE TABLE "Order" (
     "totalCents" INTEGER NOT NULL,
     "paymentStatus" TEXT NOT NULL DEFAULT 'UNPAID',
     "paymentMethod" TEXT NOT NULL DEFAULT '',
-    "requestedDate" DATETIME,
-    "scheduledDate" DATETIME,
+    "requestedDate" TIMESTAMP(3),
+    "scheduledDate" TIMESTAMP(3),
     "scheduledSlot" TEXT NOT NULL DEFAULT '',
     "truckId" TEXT,
     "driverName" TEXT NOT NULL DEFAULT '',
-    "deliveredAt" DATETIME,
-    "canceledAt" DATETIME,
+    "deliveredAt" TIMESTAMP(3),
+    "canceledAt" TIMESTAMP(3),
     "cancelReason" TEXT NOT NULL DEFAULT '',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Order_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Order_zoneId_fkey" FOREIGN KEY ("zoneId") REFERENCES "Zone" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "Order_truckId_fkey" FOREIGN KEY ("truckId") REFERENCES "Truck" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "OrderItem" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "productId" TEXT,
     "nameSnap" TEXT NOT NULL,
     "unitSnap" TEXT NOT NULL,
-    "qty" REAL NOT NULL,
+    "qty" DOUBLE PRECISION NOT NULL,
     "unitCents" INTEGER NOT NULL,
     "totalCents" INTEGER NOT NULL,
-    CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+
+    CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "EmailLog" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT,
     "toEmail" TEXT NOT NULL,
     "subject" TEXT NOT NULL,
     "html" TEXT NOT NULL,
     "kind" TEXT NOT NULL,
     "sentVia" TEXT NOT NULL DEFAULT 'TEST_MAILBOX',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "EmailLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "EventLog" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT,
     "type" TEXT NOT NULL,
     "meta" TEXT NOT NULL DEFAULT '{}',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "EventLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ErrorLog" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "where" TEXT NOT NULL,
     "message" TEXT NOT NULL,
     "stack" TEXT NOT NULL DEFAULT '',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ErrorLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Invoice" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "yardId" TEXT NOT NULL,
     "amountCents" INTEGER NOT NULL,
     "plan" TEXT NOT NULL,
-    "periodStart" DATETIME NOT NULL,
-    "periodEnd" DATETIME NOT NULL,
+    "periodStart" TIMESTAMP(3) NOT NULL,
+    "periodEnd" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'TEST_PAID',
     "provider" TEXT NOT NULL DEFAULT 'MOCK',
     "externalId" TEXT NOT NULL DEFAULT '',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Invoice_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Invoice_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -200,3 +213,33 @@ CREATE INDEX "EventLog_type_createdAt_idx" ON "EventLog"("type", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "EventLog_yardId_createdAt_idx" ON "EventLog"("yardId", "createdAt");
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Zone" ADD CONSTRAINT "Zone_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Truck" ADD CONSTRAINT "Truck_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_zoneId_fkey" FOREIGN KEY ("zoneId") REFERENCES "Zone"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_truckId_fkey" FOREIGN KEY ("truckId") REFERENCES "Truck"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_yardId_fkey" FOREIGN KEY ("yardId") REFERENCES "Yard"("id") ON DELETE CASCADE ON UPDATE CASCADE;

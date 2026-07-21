@@ -58,6 +58,7 @@ export async function createStripeCheckout(opts: {
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const params = new URLSearchParams({
     mode: "subscription",
+    allow_promotion_codes: "true",
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": String(plan.priceCents),

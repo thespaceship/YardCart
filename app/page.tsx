@@ -1,27 +1,31 @@
 import Link from "next/link";
 import MarketingShell from "@/components/MarketingShell";
+import HeroBackground from "@/components/HeroBackground";
 
 export default function Home() {
   return (
     <MarketingShell>
       <section className="hero container">
-        <h1>Your yard closes at 5. Your orders don&apos;t have to.</h1>
-        <p className="sub">
-          YardCart puts a bulk-material ordering page on your website — mulch, topsoil, compost,
-          firewood — with delivery pricing by ZIP code, and a dispatch board that keeps your trucks
-          full. Flat monthly price. <strong>No per-order fees.</strong>
-        </p>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <Link href="/signup" className="btn big">
-            Start free 14-day trial
-          </Link>
-          <Link href="/s/cedar-ridge-demo" className="btn big secondary">
-            Try the live demo →
-          </Link>
+        <HeroBackground />
+        <div className="hero-content">
+          <h1>Your yard closes at 5. Your orders don&apos;t have to.</h1>
+          <p className="sub">
+            YardCart puts a bulk-material ordering page on your website — mulch, topsoil, compost,
+            firewood — with delivery pricing by ZIP code, and a dispatch board that keeps your
+            trucks full. Flat monthly price. <strong>No per-order fees.</strong>
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link href="/signup" className="btn big">
+              Start free 14-day trial
+            </Link>
+            <Link href="/s/cedar-ridge-demo" className="btn big secondary">
+              Try the live demo →
+            </Link>
+          </div>
+          <p className="muted" style={{ marginTop: 12 }}>
+            Set up in ~10 minutes. No credit card. Cancel anytime.
+          </p>
         </div>
-        <p className="muted" style={{ marginTop: 12 }}>
-          Set up in ~10 minutes. No credit card. Cancel anytime.
-        </p>
       </section>
 
       <section className="container" style={{ paddingTop: 24 }}>

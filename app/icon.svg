@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" rx="116" fill="#2e5d3b"/>
+    <!-- heaped material -->
+    <path d="M150 252 Q 286 150 422 252 Z" fill="#c47a3d"/>
+    <path d="M198 232 Q 240 196 286 214 Q 330 196 372 234" fill="none" stroke="#234a2e" stroke-width="7" stroke-linecap="round" opacity="0.25"/>
+    <!-- tray -->
+    <path d="M138 252 H432 L388 324 H208 Z" fill="#ffffff"/>
+    <!-- strut from tray to wheel -->
+    <path d="M214 322 L200 350" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
+    <!-- wheel -->
+    <circle cx="200" cy="368" r="40" fill="#ffffff"/>
+    <circle cx="200" cy="368" r="15" fill="#2e5d3b"/>
+    <!-- rear leg -->
+    <path d="M388 324 L388 380" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+    <!-- handle -->
+    <path d="M424 252 L474 232" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+  </svg>

@@ -37,7 +37,7 @@ export function organizationJsonLd() {
     url: SITE_URL,
     description: SITE_DESCRIPTION,
     slogan: SITE_TAGLINE,
-    // logo: absoluteUrl("/icon.png"), // TODO: add a square PNG logo to /public and enable
+    logo: absoluteUrl("/icon.png"),
     sameAs: [] as string[], // add social/profile URLs here as they go live
   };
 }

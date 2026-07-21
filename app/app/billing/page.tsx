@@ -61,7 +61,19 @@ export default async function BillingPage(props: {
         )}
         {yard.planStatus === "ACTIVE" && !yard.stripeCancelAtPeriodEnd && (
           <form action={cancelPlan}>
-            <button className="btn danger small">Cancel subscription</button>
+            <ConfirmSubmit
+              label="Cancel subscription"
+              title={`Cancel your ${PLANS[yard.plan]?.name ?? yard.plan} subscription?`}
+              message={
+                testMode
+                  ? `This cancels your ${PLANS[yard.plan]?.name ?? yard.plan} subscription now (test mode).`
+                  : `Your ${PLANS[yard.plan]?.name ?? yard.plan} subscription will stop renewing and cancel at the end of the current billing period.\n\nYou keep full access until then, and can resubscribe anytime.`
+              }
+              confirmLabel="Cancel subscription"
+              cancelLabel="Keep my subscription"
+              className="btn danger small"
+              confirmClassName="btn danger"
+            />
           </form>
         )}
       </div>

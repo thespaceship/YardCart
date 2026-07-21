@@ -69,6 +69,19 @@ export async function startCheckout(formData: FormData): Promise<void> {
             stripeCancelAtPeriodEnd: false,
           });
           await trackEvent("plan_switched", { yardId: ctx.yard.id, meta: { plan, mode: "stripe" } });
+          const amount = formatCents(PLANS[plan].priceCents);
+          await sendEmail({
+            yardId: ctx.yard.id,
+            to: ctx.user.email,
+            kind: "billing",
+            subject: `Your YardCart plan is now ${PLANS[plan].name} — ${amount}/mo`,
+            html: emailShell(
+              `Plan changed to ${PLANS[plan].name}`,
+              `<p>Your plan is now <strong>${PLANS[plan].name}</strong> at <strong>${amount}/mo</strong>. The
+                prorated difference for the rest of this billing period has been charged to your card on file.</p>
+               <p>See details under <a href="${process.env.APP_URL ?? "https://www.getyardcart.com"}/app/billing">Billing</a>.</p>`
+            ),
+          });
         } catch (e) {
           // never crash the page on a Stripe/DB hiccup — log it and show a friendly message
           await logError("billing.switch", e instanceof Error ? e.message : String(e));

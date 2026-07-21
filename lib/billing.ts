@@ -170,8 +170,9 @@ async function createStripeProduct(name: string): Promise<string> {
  * it — instead of creating a second parallel subscription that would double-charge the customer.
  * The subscription's existing Stripe product is reused (its name kept in sync, best-effort) since
  * the Subscriptions API's price_data needs a product id, not inline product_data.
- * proration_behavior=create_prorations charges/credits the difference for the current period, the
- * Stripe default for a self-serve tier change.
+ * proration_behavior=always_invoice bills the prorated difference immediately: an upgrade charges
+ * the card on file right away (a visible transaction + receipt), a downgrade issues a credit toward
+ * the next invoice.
  */
 export async function switchStripeSubscriptionPlan(subscriptionId: string, plan: string): Promise<void> {
   const p = PLANS[plan];
@@ -201,7 +202,7 @@ export async function switchStripeSubscriptionPlan(subscriptionId: string, plan:
     "items[0][price_data][unit_amount]": String(p.priceCents),
     "items[0][price_data][recurring][interval]": "month",
     "items[0][price_data][product]": productId,
-    proration_behavior: "create_prorations",
+    proration_behavior: "always_invoice",
     "metadata[plan]": plan,
     cancel_at_period_end: "false", // switching tiers also un-schedules any pending cancellation
   });

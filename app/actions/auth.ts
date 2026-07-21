@@ -41,6 +41,18 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
     data: { name, email, passwordHash: await hashPassword(password), role: "OWNER" },
   });
   await trackEvent("signup", { meta: { userId: user.id } });
+  await sendEmail({
+    to: email,
+    subject: "Welcome to YardCart — let's set up your yard",
+    kind: "welcome",
+    html: emailShell(
+      `Welcome, ${escapeHtml(name)}!`,
+      `<p>Your YardCart account is ready. Next, finish setting up your yard — add your products,
+        delivery zones, and trucks — and your online ordering page goes live.</p>
+       <p>You're on a <strong>14-day free trial</strong>; no card required until you choose a plan.</p>
+       <p><a href="${escapeHtml(process.env.APP_URL ?? "https://www.getyardcart.com")}/app/onboarding">Finish setup →</a></p>`
+    ),
+  });
   if (process.env.OWNER_EMAIL) {
     await sendEmail({
       to: process.env.OWNER_EMAIL,

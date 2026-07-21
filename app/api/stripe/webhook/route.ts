@@ -3,6 +3,8 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/billing";
 import { ownedYardIdsForYard } from "@/lib/yards";
+import { sendEmail, emailShell } from "@/lib/mailer";
+import { formatCents } from "@/lib/money";
 import { logError } from "@/lib/observability";
 
 /**
@@ -91,6 +93,24 @@ export async function POST(req: NextRequest) {
                 stripeSubscriptionId: session.subscription ?? undefined,
                 stripeCancelAtPeriodEnd: false,
               },
+            });
+          }
+          // Payment confirmation / receipt (Stripe also emails its own receipt if enabled in the
+          // Dashboard; this is the branded YardCart confirmation and always lands in /app/mailbox).
+          const yard = await db.yard.findUnique({ where: { id: yardId }, select: { email: true } });
+          const to = session.customer_details?.email ?? session.customer_email ?? yard?.email;
+          if (to) {
+            const amount = formatCents(PLANS[plan].priceCents);
+            await sendEmail({
+              yardId,
+              to,
+              kind: "billing",
+              subject: `Your YardCart ${PLANS[plan].name} plan is active — ${amount}/mo`,
+              html: emailShell(
+                `You're subscribed to ${PLANS[plan].name}`,
+                `<p>Thanks! Your <strong>${PLANS[plan].name}</strong> plan is active at <strong>${amount}/mo</strong>.</p>
+                 <p>You can view invoices and manage your plan anytime under <a href="${process.env.APP_URL ?? "https://www.getyardcart.com"}/app/billing">Billing</a>.</p>`
+              ),
             });
           }
         }

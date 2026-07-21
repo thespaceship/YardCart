@@ -4,9 +4,11 @@
  * SITE_URL is the production origin (no trailing slash). Override with
  * NEXT_PUBLIC_SITE_URL in the environment; falls back to the live domain.
  */
+// Canonical host is www — the apex getyardcart.com 308-redirects to www.getyardcart.com,
+// so URLs in the sitemap/canonicals/JSON-LD must use www to avoid redirect chains.
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://getyardcart.com"
+  "https://www.getyardcart.com"
 ).replace(/\/$/, "");
 
 export const SITE_NAME = "YardCart";

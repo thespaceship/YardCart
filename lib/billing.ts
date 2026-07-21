@@ -181,16 +181,16 @@ export async function switchStripeSubscriptionPlan(subscriptionId: string, plan:
 
   let productId = sub.productId;
   if (productId) {
-    // keep the product name aligned with the new tier; cosmetic, so don't block the switch on it
-    try {
-      await fetch(`${STRIPE_API}/products/${encodeURIComponent(productId)}`, {
-        method: "POST",
-        headers: stripeHeaders(),
-        body: new URLSearchParams({ name: `YardCart ${p.name}` }).toString(),
-      });
-    } catch {
-      /* non-fatal: the tier switch below is what matters */
-    }
+    // Ensure the product is ACTIVE and its name matches the new tier. A Checkout-created product
+    // can be archived (e.g. when a related customer is deleted), and Stripe rejects a new price on
+    // an inactive product ("...marked as inactive... no new subscriptions can be created"). If we
+    // can't reactivate/rename it for any reason, fall back to a fresh product so the switch works.
+    const r = await fetch(`${STRIPE_API}/products/${encodeURIComponent(productId)}`, {
+      method: "POST",
+      headers: stripeHeaders(),
+      body: new URLSearchParams({ active: "true", name: `YardCart ${p.name}` }).toString(),
+    });
+    if (!r.ok) productId = await createStripeProduct(`YardCart ${p.name}`);
   } else {
     productId = await createStripeProduct(`YardCart ${p.name}`);
   }

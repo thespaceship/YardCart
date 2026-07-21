@@ -15,7 +15,7 @@ export default function Home() {
             trucks full. Flat monthly price. <strong>No per-order fees.</strong>
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link href="/signup" className="btn big">
+            <Link href="/pricing" className="btn big">
               Start free 14-day trial
             </Link>
             <Link href="/s/cedar-ridge-demo" className="btn big secondary">
@@ -80,7 +80,7 @@ export default function Home() {
           Landscape supply yards · garden centers with delivery trucks · mulch &amp; topsoil
           operations · firewood sellers. If you deliver bulk material by the yard, YardCart fits.
         </p>
-        <Link href="/signup" className="btn big">
+        <Link href="/pricing" className="btn big">
           Start your free trial
         </Link>
       </section>

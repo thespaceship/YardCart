@@ -34,6 +34,20 @@ export const PLANS: Record<
   },
 };
 
+/** Paid tiers a visitor can start a trial on, in ascending order. Excludes the bare "TRIAL". */
+export const TRIAL_PLANS = ["STARTER", "PRO", "MULTI"] as const;
+
+/**
+ * Coerce an untrusted plan string (from a ?plan= param or form field) to a real trial tier.
+ * Anything missing or unrecognized falls back to Starter — the safest default, since it never
+ * auto-grants a higher tier to someone who didn't pick one.
+ */
+export function normalizeTrialPlan(plan: unknown): "STARTER" | "PRO" | "MULTI" {
+  return (TRIAL_PLANS as readonly string[]).includes(String(plan))
+    ? (plan as "STARTER" | "PRO" | "MULTI")
+    : "STARTER";
+}
+
 /** Is this yard's subscription (or trial) currently good for online ordering? */
 export function yardActive(yard: { planStatus: string; trialEndsAt: Date | null }): boolean {
   if (yard.planStatus === "ACTIVE") return true;

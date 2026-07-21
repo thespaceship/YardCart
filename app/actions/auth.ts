@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
+import { normalizeTrialPlan } from "@/lib/billing";
 import { trackEvent } from "@/lib/observability";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 
@@ -65,7 +66,7 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
     });
   }
   await createSession(user.id);
-  redirect("/app/onboarding");
+  redirect(`/app/onboarding?plan=${normalizeTrialPlan(formData.get("plan"))}`);
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {

@@ -21,12 +21,22 @@ function onActiveTrial(yard: YardTier): boolean {
 }
 
 /**
- * Does the yard's plan meet or exceed `required`? Yards on an active trial get full access so
- * owners can evaluate Pro-tier features before they pay; once the trial ends (or they're on a
- * paid plan) the rank comparison applies.
+ * Does the yard's plan meet or exceed `required`?
+ *
+ * A yard that is still TRIALING has never paid, so its `plan` records which tier the owner chose to
+ * try, not an entitlement they've bought. While the trial is live they get access up to that tier
+ * (a Starter trial doesn't see Pro/Multi features); once it expires the account is frozen — every
+ * gated feature locks until they pick a paid plan. Legacy trials created before tier selection carry
+ * plan="TRIAL"; treat those as Starter so they keep the base app while the trial runs.
+ *
+ * For a converted (paid) plan the tier rank applies directly, as before.
  */
 export function meetsPlan(yard: YardTier, required: string): boolean {
-  if (onActiveTrial(yard)) return true;
+  if (yard.planStatus === "TRIALING") {
+    if (!onActiveTrial(yard)) return false; // expired trial → frozen until they subscribe
+    const trialTier = yard.plan === "TRIAL" ? "STARTER" : yard.plan;
+    return planRank(trialTier) >= planRank(required);
+  }
   return planRank(yard.plan) >= planRank(required);
 }
 

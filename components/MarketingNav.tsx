@@ -16,7 +16,7 @@ export default function MarketingNav() {
           <Link href="/pricing">Pricing</Link>
           <Link href="/s/cedar-ridge-demo">Live demo</Link>
           <Link href="/login">Log in</Link>
-          <Link href="/signup" className="btn">
+          <Link href="/pricing" className="btn">
             Start free trial
           </Link>
         </div>
@@ -57,7 +57,7 @@ export default function MarketingNav() {
           <Link href="/login" onClick={() => setOpen(false)}>
             Log in
           </Link>
-          <Link href="/signup" className="btn" onClick={() => setOpen(false)}>
+          <Link href="/pricing" className="btn" onClick={() => setOpen(false)}>
             Start free trial
           </Link>
         </div>

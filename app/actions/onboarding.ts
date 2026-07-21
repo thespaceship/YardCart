@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
 import { PRODUCT_TEMPLATES } from "@/lib/templates";
+import { normalizeTrialPlan } from "@/lib/billing";
 import { trackEvent } from "@/lib/observability";
 
 export type OnboardingState = { error?: string };
@@ -79,6 +80,9 @@ export async function completeOnboarding(
       email: email || user.email,
       city,
       state,
+      // Trial is scoped to the tier the owner picked on the pricing page (defaults to Starter);
+      // planStatus stays TRIALING so it's still a free 14-day trial, no card required.
+      plan: normalizeTrialPlan(formData.get("plan")),
       trialEndsAt,
       onboardedAt: new Date(),
       products: {

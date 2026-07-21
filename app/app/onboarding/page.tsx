@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { PRODUCT_TEMPLATES } from "@/lib/templates";
+import { normalizeTrialPlan } from "@/lib/billing";
 import OnboardingForm from "@/components/OnboardingForm";
 
 export const metadata = { title: "Set up your yard" };
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage(props: {
+  searchParams: Promise<{ plan?: string }>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (user.yardId) redirect("/app");
+  const plan = normalizeTrialPlan((await props.searchParams).plan);
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
@@ -26,6 +30,7 @@ export default async function OnboardingPage() {
           unit: t.unit,
         }))}
         defaultEmail={user.email}
+        plan={plan}
       />
     </div>
   );

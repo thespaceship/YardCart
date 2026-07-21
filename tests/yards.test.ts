@@ -23,9 +23,12 @@ describe("canAddLocation", () => {
   it("blocks non-Multi plans (Pro can't add locations)", () => {
     expect(canAddLocation({ plan: "PRO", planStatus: "ACTIVE", trialEndsAt: null }, 0)).toBe(false);
   });
-  it("allows an active trial to evaluate multi-yard", () => {
+  it("lets a Multi trial evaluate multi-yard, but not a lower-tier trial", () => {
     const future = new Date(Date.now() + 7 * 864e5);
-    expect(canAddLocation({ plan: "TRIAL", planStatus: "TRIALING", trialEndsAt: future }, 0)).toBe(true);
+    expect(canAddLocation({ plan: "MULTI", planStatus: "TRIALING", trialEndsAt: future }, 0)).toBe(true);
+    // a Starter/legacy trial is scoped below Multi, so it can't add locations
+    expect(canAddLocation({ plan: "STARTER", planStatus: "TRIALING", trialEndsAt: future }, 0)).toBe(false);
+    expect(canAddLocation({ plan: "TRIAL", planStatus: "TRIALING", trialEndsAt: future }, 0)).toBe(false);
   });
 });
 

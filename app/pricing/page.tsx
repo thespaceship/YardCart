@@ -36,8 +36,12 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/signup" className="btn" style={{ width: "100%", textAlign: "center" }}>
-                Start free trial
+              <Link
+                href={`/signup?plan=${key}`}
+                className="btn"
+                style={{ width: "100%", textAlign: "center" }}
+              >
+                Start {plan.name} trial
               </Link>
             </div>
           ))}

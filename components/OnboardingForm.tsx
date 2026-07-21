@@ -12,15 +12,18 @@ const UNIT_LABELS: Record<string, string> = {
 export default function OnboardingForm({
   templates,
   defaultEmail,
+  plan,
 }: {
   templates: { idx: number; name: string; category: string; defaultPrice: string; unit: string }[];
   defaultEmail: string;
+  plan: string;
 }) {
   const [state, formAction, pending] = useActionState(completeOnboarding, {} as OnboardingState);
 
   return (
     <form action={formAction} className="stack">
       {state.error && <div className="alert error">{state.error}</div>}
+      <input type="hidden" name="plan" value={plan} />
 
       <div className="card">
         <h2>1 — Your yard</h2>

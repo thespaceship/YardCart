@@ -31,12 +31,27 @@ describe("meetsPlan — paid tiers", () => {
 describe("meetsPlan — trials", () => {
   const future = new Date(Date.now() + 7 * 864e5);
   const past = new Date(Date.now() - 864e5);
-  it("gives an active trial full access to evaluate Pro features", () => {
-    expect(meetsPlan(yard({ plan: "TRIAL", planStatus: "TRIALING", trialEndsAt: future }), "PRO")).toBe(true);
-    expect(meetsPlan(yard({ plan: "TRIAL", planStatus: "TRIALING", trialEndsAt: null }), "MULTI")).toBe(true);
+  const trialing = (plan: string, trialEndsAt: Date | null) =>
+    yard({ plan, planStatus: "TRIALING", trialEndsAt });
+
+  it("scopes an active trial to the tier the owner picked", () => {
+    // Pro trial: gets Starter+Pro, but not Multi-only features
+    expect(meetsPlan(trialing("PRO", future), "STARTER")).toBe(true);
+    expect(meetsPlan(trialing("PRO", future), "PRO")).toBe(true);
+    expect(meetsPlan(trialing("PRO", future), "MULTI")).toBe(false);
+    // Starter trial: base app only
+    expect(meetsPlan(trialing("STARTER", future), "STARTER")).toBe(true);
+    expect(meetsPlan(trialing("STARTER", future), "PRO")).toBe(false);
+    // Multi trial: everything
+    expect(meetsPlan(trialing("MULTI", future), "MULTI")).toBe(true);
   });
-  it("blocks Pro features once the trial has expired", () => {
-    expect(meetsPlan(yard({ plan: "TRIAL", planStatus: "TRIALING", trialEndsAt: past }), "PRO")).toBe(false);
+  it("treats a legacy bare TRIAL as Starter-level while active", () => {
+    expect(meetsPlan(trialing("TRIAL", future), "STARTER")).toBe(true);
+    expect(meetsPlan(trialing("TRIAL", future), "PRO")).toBe(false);
+    expect(meetsPlan(trialing("TRIAL", null), "MULTI")).toBe(false);
+  });
+  it("blocks above-tier features once the trial has expired", () => {
+    expect(meetsPlan(trialing("PRO", past), "PRO")).toBe(false);
   });
 });
 

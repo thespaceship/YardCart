@@ -93,6 +93,7 @@ export async function completeOnboarding(
     },
   });
   await db.user.update({ where: { id: user.id }, data: { yardId: yard.id } });
+  await db.yardMember.create({ data: { userId: user.id, yardId: yard.id, role: "OWNER" } });
   await trackEvent("onboarded", { yardId: yard.id });
   redirect("/app?welcome=1");
 }

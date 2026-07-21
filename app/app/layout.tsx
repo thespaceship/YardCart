@@ -3,13 +3,17 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logout } from "@/app/actions/auth";
+import { switchYard } from "@/app/actions/yards";
 import { yardActive } from "@/lib/billing";
+import { meetsPlan } from "@/lib/entitlements";
+import { getOwnedYards } from "@/lib/yards";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   const yard = user.yardId ? await db.yard.findUnique({ where: { id: user.yardId } }) : null;
+  const ownedYards = yard ? await getOwnedYards(user.id) : [];
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -19,16 +23,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <>
             <Link href="/app">Today</Link>
             <Link href="/app/orders">Orders</Link>
-            <Link href="/app/dispatch">Dispatch</Link>
+            {meetsPlan(yard, "PRO") && <Link href="/app/dispatch">Dispatch</Link>}
             <Link href="/app/products">Products</Link>
             <Link href="/app/zones">Zones</Link>
-            <Link href="/app/trucks">Trucks</Link>
-            <Link href="/app/reports">Reports</Link>
+            {meetsPlan(yard, "PRO") && <Link href="/app/trucks">Trucks</Link>}
+            {meetsPlan(yard, "PRO") && <Link href="/app/reports">Reports</Link>}
             <Link href="/app/mailbox">Mailbox</Link>
             <Link href="/app/settings">Settings</Link>
+            {meetsPlan(yard, "MULTI") && <Link href="/app/locations">Locations</Link>}
           </>
         )}
         <span className="spacer" />
+        {ownedYards.length > 1 && (
+          <form action={switchYard} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <select name="yardId" defaultValue={yard!.id} aria-label="Active location">
+              {ownedYards.map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn secondary small">Switch</button>
+          </form>
+        )}
         {yard && (
           <a href={`/s/${yard.slug}`} target="_blank" rel="noreferrer">
             View storefront ↗

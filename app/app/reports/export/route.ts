@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { meetsPlan } from "@/lib/entitlements";
 
 function csvEscape(v: string | number): string {
   let s = String(v);
@@ -14,6 +15,9 @@ function csvEscape(v: string | number): string {
 export async function GET() {
   const ctx = await requireYardUser();
   if (!ctx) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!meetsPlan(ctx.yard, "PRO")) {
+    return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+  }
 
   const orders = await db.order.findMany({
     where: {

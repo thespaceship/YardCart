@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { meetsPlan } from "@/lib/entitlements";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import { orderYards, dailyCapacityYards } from "@/lib/capacity";
 import { localNow, addDays, storedDateKey } from "@/lib/tz";
 import { unitLabel } from "@/lib/money";
@@ -14,6 +16,7 @@ export default async function DispatchPage(props: {
   searchParams: Promise<{ start?: string }>;
 }) {
   const ctx = await requireYardUser();
+  if (!meetsPlan(ctx.yard, "PRO")) return <UpgradePrompt feature="Dispatch board" required="PRO" />;
   const { start } = await props.searchParams;
 
   const todayKey = localNow(ctx.yard.timezone).dateKey;

@@ -8,6 +8,7 @@ import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
+import { assertPlan } from "@/lib/entitlements";
 
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
@@ -91,6 +92,7 @@ export async function deleteZone(formData: FormData): Promise<void> {
 
 export async function upsertTruck(formData: FormData): Promise<void> {
   const ctx = await ctxOrLogin();
+  assertPlan(ctx.yard, "PRO"); // fleet/truck management is a Pro feature
   const id = String(formData.get("id") ?? "");
   const data = {
     name: String(formData.get("name") ?? "").trim().slice(0, 120),

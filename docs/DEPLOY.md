@@ -21,8 +21,11 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
    `openssl rand -hex 32`), `APP_URL=https://<domain>`, `RESEND_API_KEY`, `EMAIL_FROM`,
    `STRIPE_SECRET_KEY` (test mode first), `STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`.
 3. **Deploy:** connect the git repo to Vercel; build command `next build` (default).
-4. **Stripe webhook:** add endpoint `https://<domain>/api/stripe/webhook` for
-   `checkout.session.completed`; copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+4. **Stripe webhook:** add endpoint `https://<domain>/api/stripe/webhook` subscribed to
+   `checkout.session.completed`, `customer.subscription.deleted`, and
+   `invoice.payment_failed`; copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+   (`subscription.deleted` is what flips a yard to CANCELED at the end of a
+   cancel-at-period-end cancellation; `payment_failed` marks it PAST_DUE.)
 5. **Demo storefront:** run `DATABASE_URL="<neon url>" npm run seed:demo` once to create
    the public demo yard (`/s/cedar-ridge-demo`). This prod-safe seed creates the
    storefront only — no login user, no yard email, no fake orders — and checkout against
@@ -33,7 +36,14 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
    (GitHub Action cron) to private storage.
 7. **Smoke test (prod):** signup → onboarding → storefront order with a test ZIP →
    schedule → mailbox shows Resend-sent mail → Stripe test checkout with card 4242… →
-   webhook activates plan.
+   webhook activates plan. Then exercise the plan-change paths on that test yard:
+   **switch tier** (e.g. Starter → Pro) and confirm Stripe shows the *same* subscription
+   with a new price (not a second subscription); **cancel** and confirm the subscription
+   shows "cancels at period end" in Stripe and the app reflects the pending cancellation.
+   Also confirm a Starter yard is blocked from Pro pages (Dispatch/Trucks/Reports show the
+   upgrade prompt; `/app/reports/export` returns 403) while a Pro/trial yard is not.
+   On a Multi yard, confirm `/app/locations` can add a 2nd location (capped at 5), the nav
+   yard-switcher appears, and both locations show as ACTIVE (billing mirrors across them).
 
 ## Security checklist before public launch
 - [ ] `SESSION_SECRET` rotated from any value ever committed or shared

@@ -46,7 +46,13 @@ export default async function BillingPage(props: {
             <> · {trialDaysLeft} trial day{trialDaysLeft === 1 ? "" : "s"} left</>
           )}
         </p>
-        {yard.planStatus === "ACTIVE" && (
+        {yard.planStatus === "ACTIVE" && yard.stripeCancelAtPeriodEnd && (
+          <p className="muted" style={{ marginTop: 8 }}>
+            Your plan is set to cancel at the end of the current billing period. You keep full
+            access until then; pick a plan below to stay subscribed.
+          </p>
+        )}
+        {yard.planStatus === "ACTIVE" && !yard.stripeCancelAtPeriodEnd && (
           <form action={cancelPlan}>
             <button className="btn danger small">Cancel subscription</button>
           </form>
@@ -78,7 +84,9 @@ export default async function BillingPage(props: {
                   ? "Current plan"
                   : testMode
                     ? "Activate (test)"
-                    : "Subscribe"}
+                    : yard.planStatus === "ACTIVE"
+                      ? `Switch to ${plan.name}`
+                      : "Subscribe"}
               </button>
             </form>
           </div>

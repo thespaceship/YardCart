@@ -1,5 +1,7 @@
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { meetsPlan } from "@/lib/entitlements";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import { upsertTruck } from "@/app/actions/catalog";
 
 export const metadata = { title: "Trucks" };
@@ -37,6 +39,7 @@ function TruckForm({ truck }: { truck?: {
 
 export default async function TrucksPage() {
   const ctx = await requireYardUser();
+  if (!meetsPlan(ctx.yard, "PRO")) return <UpgradePrompt feature="Trucks & fleet" required="PRO" />;
   const trucks = await db.truck.findMany({
     where: { yardId: ctx.yard.id },
     orderBy: [{ active: "desc" }, { name: "asc" }],

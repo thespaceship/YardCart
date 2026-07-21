@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assertPlan } from "@/lib/entitlements";
 import { placeOrder, OrderError } from "@/lib/orders";
 import { sendEmail, emailShell } from "@/lib/mailer";
 import { trackEvent } from "@/lib/observability";
@@ -22,6 +23,7 @@ export async function scheduleOrder(formData: FormData): Promise<void> {
   const slot = String(formData.get("slot") ?? "");
   const truckId = String(formData.get("truckId") ?? "");
   const { ctx, order } = await ownedOrder(orderId);
+  assertPlan(ctx.yard, "PRO"); // dispatch scheduling is a Pro feature
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Pick a date");
   if (truckId) {
     const truck = await db.truck.findUnique({ where: { id: truckId } });

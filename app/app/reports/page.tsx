@@ -1,11 +1,14 @@
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { meetsPlan } from "@/lib/entitlements";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import { formatCents } from "@/lib/money";
 
 export const metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
   const ctx = await requireYardUser();
+  if (!meetsPlan(ctx.yard, "PRO")) return <UpgradePrompt feature="Reports & QuickBooks export" required="PRO" />;
   const yardId = ctx.yard.id;
   const since30 = new Date(Date.now() - 30 * 864e5);
 

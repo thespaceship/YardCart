@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { meetsPlan } from "@/lib/entitlements";
 import { formatCents, unitLabel } from "@/lib/money";
 import {
   scheduleOrder,
@@ -22,6 +23,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   });
   if (!order || order.yardId !== ctx.yard.id) notFound();
 
+  const isPro = meetsPlan(ctx.yard, "PRO"); // dispatch scheduling + printable tickets are Pro
   const trucks = await db.truck.findMany({ where: { yardId: ctx.yard.id, active: true } });
   const defaultDate = (order.scheduledDate ?? order.requestedDate ?? new Date())
     .toISOString()
@@ -42,11 +44,13 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             {order.createdAt.toLocaleString("en-US")}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <a className="btn secondary" href={`/app/orders/${order.id}/ticket`} target="_blank">
-            Print ticket
-          </a>
-        </div>
+        {isPro && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <a className="btn secondary" href={`/app/orders/${order.id}/ticket`} target="_blank">
+              Print ticket
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="grid2">
@@ -136,7 +140,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         </div>
       </div>
 
-      {order.status !== "DELIVERED" && order.status !== "CANCELED" && (
+      {isPro && order.status !== "DELIVERED" && order.status !== "CANCELED" && (
         <div className="card">
           <h3>Schedule &amp; dispatch</h3>
           {order.requestedDate && (

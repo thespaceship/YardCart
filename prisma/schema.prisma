@@ -13,10 +13,26 @@ model User {
   passwordHash String
   name         String
   role         String   @default("OWNER") // OWNER | STAFF
-  yardId       String?
+  yardId       String?  // currently *active* yard in the dashboard
   yard         Yard?    @relation(fields: [yardId], references: [id], onDelete: SetNull)
+  memberships  YardMember[] // yards this user owns (Multi plan → up to 5)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// Owner → yard(s) membership. Keeps User.yardId as the single "active" yard while allowing a
+// Multi-plan owner to own several yards; the yard-switcher and location cap read from here.
+model YardMember {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yardId    String
+  yard      Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  role      String   @default("OWNER") // OWNER (staff still attach via User.yardId)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, yardId])
+  @@index([userId])
 }
 
 model Yard {
@@ -43,11 +59,14 @@ model Yard {
   planStatus         String    @default("TRIALING") // TRIALING | ACTIVE | PAST_DUE | CANCELED
   trialEndsAt        DateTime?
   stripeCustomerId   String?
+  stripeSubscriptionId    String?  // active Stripe subscription (null once canceled)
+  stripeCancelAtPeriodEnd Boolean  @default(false) // sub set to cancel at period end
   onboardedAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   users    User[]
+  members  YardMember[]
   products Product[]
   zones    Zone[]
   trucks   Truck[]

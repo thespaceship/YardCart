@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/billing";
+import { ownedYardIdsForYard } from "@/lib/yards";
 import { logError } from "@/lib/observability";
 
 /**
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest) {
                 plan,
                 planStatus: "ACTIVE",
                 stripeCustomerId: session.customer ?? undefined,
+                stripeSubscriptionId: session.subscription ?? undefined,
+                stripeCancelAtPeriodEnd: false,
               },
             }),
             db.invoice.create({
@@ -76,13 +79,34 @@ export async function POST(req: NextRequest) {
               },
             }),
           ]);
+          // Multi-yard: mirror the (re)subscription onto the owner's other yards, if any.
+          const siblings = (await ownedYardIdsForYard(yardId)).filter((id) => id !== yardId);
+          if (siblings.length) {
+            await db.yard.updateMany({
+              where: { id: { in: siblings } },
+              data: {
+                plan,
+                planStatus: "ACTIVE",
+                stripeCustomerId: session.customer ?? undefined,
+                stripeSubscriptionId: session.subscription ?? undefined,
+                stripeCancelAtPeriodEnd: false,
+              },
+            });
+          }
         }
       }
     } else if (event.type === "customer.subscription.deleted") {
+      // Fired when the subscription actually ends (immediately, or at period end after a
+      // cancel_at_period_end cancellation). Clear the stored subscription id so a later
+      // resubscribe goes through Checkout instead of trying to modify a dead subscription.
       const sub = event.data.object;
       const yardId = sub.metadata?.yardId;
+      const canceled = { planStatus: "CANCELED", stripeSubscriptionId: null, stripeCancelAtPeriodEnd: false };
       if (yardId) {
-        await db.yard.update({ where: { id: yardId }, data: { planStatus: "CANCELED" } });
+        await db.yard.update({ where: { id: yardId }, data: canceled });
+      } else if (sub.id) {
+        // fall back to the stored subscription id if metadata is missing
+        await db.yard.updateMany({ where: { stripeSubscriptionId: String(sub.id) }, data: canceled });
       }
     } else if (event.type === "invoice.payment_failed") {
       const customer = event.data.object?.customer;

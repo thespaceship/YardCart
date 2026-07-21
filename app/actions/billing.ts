@@ -4,10 +4,38 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PLANS, stripeEnabled, createStripeCheckout } from "@/lib/billing";
+import {
+  PLANS,
+  stripeEnabled,
+  createStripeCheckout,
+  hasLiveStripeSubscription,
+  switchStripeSubscriptionPlan,
+  cancelStripeSubscription,
+  getActiveSubscriptionId,
+} from "@/lib/billing";
 import { sendEmail, emailShell } from "@/lib/mailer";
 import { trackEvent } from "@/lib/observability";
 import { formatCents } from "@/lib/money";
+import { ensureOwnerMembership, propagateOwnedYardsBilling } from "@/lib/yards";
+
+/**
+ * Return the yard's Stripe subscription id, healing it from the customer id if it was never
+ * stored (customer subscribed before the stripeSubscriptionId column existed). When found,
+ * persist it across the owner's yards so later billing actions resolve instantly.
+ */
+async function resolveSubscriptionId(
+  userId: string,
+  yard: { id: string; stripeSubscriptionId: string | null; stripeCustomerId: string | null }
+): Promise<string | null> {
+  if (yard.stripeSubscriptionId) return yard.stripeSubscriptionId;
+  if (!yard.stripeCustomerId) return null;
+  const subId = await getActiveSubscriptionId(yard.stripeCustomerId);
+  if (subId) {
+    await ensureOwnerMembership(userId, yard.id);
+    await propagateOwnedYardsBilling(userId, { stripeSubscriptionId: subId });
+  }
+  return subId;
+}
 
 export async function startCheckout(formData: FormData): Promise<void> {
   const ctx = await requireYardUser();
@@ -15,6 +43,29 @@ export async function startCheckout(formData: FormData): Promise<void> {
   if (!PLANS[plan]) throw new Error("Unknown plan");
 
   if (stripeEnabled()) {
+    // Heal a missing subscription id (customer subscribed before we stored it) so existing
+    // customers still switch in place instead of getting a second parallel subscription.
+    const subscriptionId = await resolveSubscriptionId(ctx.user.id, ctx.yard);
+    const yard = { ...ctx.yard, stripeSubscriptionId: subscriptionId };
+    // If the yard already has a live subscription, switch its tier in place (preserving any
+    // founding-customer coupon) rather than opening a second Checkout Session — which would
+    // create a second parallel subscription and double-charge the customer.
+    if (hasLiveStripeSubscription(yard)) {
+      if (ctx.yard.plan !== plan) {
+        await switchStripeSubscriptionPlan(subscriptionId!, plan);
+        // one subscription covers the account → mirror the new plan onto every owned yard
+        await ensureOwnerMembership(ctx.user.id, ctx.yard.id);
+        await propagateOwnedYardsBilling(ctx.user.id, {
+          plan,
+          planStatus: "ACTIVE",
+          stripeCancelAtPeriodEnd: false,
+        });
+        await trackEvent("plan_switched", { yardId: ctx.yard.id, meta: { plan, mode: "stripe" } });
+      }
+      revalidatePath("/app/billing");
+      redirect("/app/billing?success=1");
+    }
+    // First-time subscribe (or resubscribe after a real cancellation): go through Checkout.
     const url = await createStripeCheckout({
       plan,
       yardId: ctx.yard.id,
@@ -31,23 +82,19 @@ export async function startCheckout(formData: FormData): Promise<void> {
   const now = new Date();
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
-  await db.$transaction([
-    db.yard.update({
-      where: { id: ctx.yard.id },
-      data: { plan, planStatus: "ACTIVE" },
-    }),
-    db.invoice.create({
-      data: {
-        yardId: ctx.yard.id,
-        amountCents: PLANS[plan].priceCents,
-        plan,
-        periodStart: now,
-        periodEnd,
-        status: "TEST_PAID",
-        provider: "MOCK",
-      },
-    }),
-  ]);
+  await ensureOwnerMembership(ctx.user.id, ctx.yard.id);
+  await propagateOwnedYardsBilling(ctx.user.id, { plan, planStatus: "ACTIVE" });
+  await db.invoice.create({
+    data: {
+      yardId: ctx.yard.id,
+      amountCents: PLANS[plan].priceCents,
+      plan,
+      periodStart: now,
+      periodEnd,
+      status: "TEST_PAID",
+      provider: "MOCK",
+    },
+  });
   await trackEvent("plan_activated", { yardId: ctx.yard.id, meta: { plan, mode: "mock" } });
   await sendEmail({
     yardId: ctx.yard.id,
@@ -65,10 +112,26 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
 export async function cancelPlan(): Promise<void> {
   const ctx = await requireYardUser();
-  await db.yard.update({
-    where: { id: ctx.yard.id },
-    data: { planStatus: "CANCELED" },
-  });
-  await trackEvent("plan_canceled", { yardId: ctx.yard.id });
+
+  await ensureOwnerMembership(ctx.user.id, ctx.yard.id);
+
+  // Heal a missing subscription id so an existing customer's cancel actually reaches Stripe.
+  const subscriptionId = stripeEnabled()
+    ? await resolveSubscriptionId(ctx.user.id, ctx.yard)
+    : null;
+
+  if (stripeEnabled() && subscriptionId) {
+    // Tell Stripe to stop billing at period end. The yard keeps access (planStatus stays as-is)
+    // until Stripe emits customer.subscription.deleted, which the webhook maps to CANCELED.
+    await cancelStripeSubscription(subscriptionId);
+    await propagateOwnedYardsBilling(ctx.user.id, { stripeCancelAtPeriodEnd: true });
+    await trackEvent("plan_canceled", { yardId: ctx.yard.id, meta: { mode: "stripe" } });
+    revalidatePath("/app/billing");
+    return;
+  }
+
+  // Mock/dev mode (no Stripe): keep today's local-only behavior — cancel immediately.
+  await propagateOwnedYardsBilling(ctx.user.id, { planStatus: "CANCELED" });
+  await trackEvent("plan_canceled", { yardId: ctx.yard.id, meta: { mode: "mock" } });
   revalidatePath("/app/billing");
 }

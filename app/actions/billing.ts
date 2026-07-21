@@ -18,10 +18,10 @@ import { trackEvent, logError } from "@/lib/observability";
 import { formatCents } from "@/lib/money";
 import { ensureOwnerMembership, propagateOwnedYardsBilling } from "@/lib/yards";
 
-/** Build a redirect target that shows a friendly billing error (plus a short technical detail). */
-function billingErrorRedirect(kind: "switch" | "cancel", err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  return `/app/billing?error=${kind}&detail=${encodeURIComponent(msg.slice(0, 300))}`;
+/** Redirect target for a friendly billing error. The full error is captured via logError at the
+ *  call site, so the raw message is never shown to the customer. */
+function billingErrorRedirect(kind: "switch" | "cancel"): string {
+  return `/app/billing?error=${kind}`;
 }
 
 /**
@@ -85,7 +85,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
         } catch (e) {
           // never crash the page on a Stripe/DB hiccup — log it and show a friendly message
           await logError("billing.switch", e instanceof Error ? e.message : String(e));
-          failure = billingErrorRedirect("switch", e);
+          failure = billingErrorRedirect("switch");
         }
         revalidatePath("/app/billing");
         redirect(failure ?? "/app/billing?success=1");
@@ -158,7 +158,7 @@ export async function cancelPlan(): Promise<void> {
       await trackEvent("plan_canceled", { yardId: ctx.yard.id, meta: { mode: "stripe" } });
     } catch (e) {
       await logError("billing.cancel", e instanceof Error ? e.message : String(e));
-      failure = billingErrorRedirect("cancel", e);
+      failure = billingErrorRedirect("cancel");
     }
     revalidatePath("/app/billing");
     if (failure) redirect(failure);

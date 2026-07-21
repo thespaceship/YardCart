@@ -14,9 +14,15 @@ import {
   getActiveSubscriptionId,
 } from "@/lib/billing";
 import { sendEmail, emailShell } from "@/lib/mailer";
-import { trackEvent } from "@/lib/observability";
+import { trackEvent, logError } from "@/lib/observability";
 import { formatCents } from "@/lib/money";
 import { ensureOwnerMembership, propagateOwnedYardsBilling } from "@/lib/yards";
+
+/** Build a redirect target that shows a friendly billing error (plus a short technical detail). */
+function billingErrorRedirect(kind: "switch" | "cancel", err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return `/app/billing?error=${kind}&detail=${encodeURIComponent(msg.slice(0, 300))}`;
+}
 
 /**
  * Return the yard's Stripe subscription id, healing it from the customer id if it was never
@@ -52,15 +58,24 @@ export async function startCheckout(formData: FormData): Promise<void> {
     // create a second parallel subscription and double-charge the customer.
     if (hasLiveStripeSubscription(yard)) {
       if (ctx.yard.plan !== plan) {
-        await switchStripeSubscriptionPlan(subscriptionId!, plan);
-        // one subscription covers the account → mirror the new plan onto every owned yard
-        await ensureOwnerMembership(ctx.user.id, ctx.yard.id);
-        await propagateOwnedYardsBilling(ctx.user.id, {
-          plan,
-          planStatus: "ACTIVE",
-          stripeCancelAtPeriodEnd: false,
-        });
-        await trackEvent("plan_switched", { yardId: ctx.yard.id, meta: { plan, mode: "stripe" } });
+        let failure: string | null = null;
+        try {
+          await switchStripeSubscriptionPlan(subscriptionId!, plan);
+          // one subscription covers the account → mirror the new plan onto every owned yard
+          await ensureOwnerMembership(ctx.user.id, ctx.yard.id);
+          await propagateOwnedYardsBilling(ctx.user.id, {
+            plan,
+            planStatus: "ACTIVE",
+            stripeCancelAtPeriodEnd: false,
+          });
+          await trackEvent("plan_switched", { yardId: ctx.yard.id, meta: { plan, mode: "stripe" } });
+        } catch (e) {
+          // never crash the page on a Stripe/DB hiccup — log it and show a friendly message
+          await logError("billing.switch", e instanceof Error ? e.message : String(e));
+          failure = billingErrorRedirect("switch", e);
+        }
+        revalidatePath("/app/billing");
+        redirect(failure ?? "/app/billing?success=1");
       }
       revalidatePath("/app/billing");
       redirect("/app/billing?success=1");
@@ -123,10 +138,17 @@ export async function cancelPlan(): Promise<void> {
   if (stripeEnabled() && subscriptionId) {
     // Tell Stripe to stop billing at period end. The yard keeps access (planStatus stays as-is)
     // until Stripe emits customer.subscription.deleted, which the webhook maps to CANCELED.
-    await cancelStripeSubscription(subscriptionId);
-    await propagateOwnedYardsBilling(ctx.user.id, { stripeCancelAtPeriodEnd: true });
-    await trackEvent("plan_canceled", { yardId: ctx.yard.id, meta: { mode: "stripe" } });
+    let failure: string | null = null;
+    try {
+      await cancelStripeSubscription(subscriptionId);
+      await propagateOwnedYardsBilling(ctx.user.id, { stripeCancelAtPeriodEnd: true });
+      await trackEvent("plan_canceled", { yardId: ctx.yard.id, meta: { mode: "stripe" } });
+    } catch (e) {
+      await logError("billing.cancel", e instanceof Error ? e.message : String(e));
+      failure = billingErrorRedirect("cancel", e);
+    }
     revalidatePath("/app/billing");
+    if (failure) redirect(failure);
     return;
   }
 

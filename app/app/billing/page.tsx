@@ -7,10 +7,10 @@ import { startCheckout, cancelPlan } from "@/app/actions/billing";
 export const metadata = { title: "Billing" };
 
 export default async function BillingPage(props: {
-  searchParams: Promise<{ success?: string; canceled?: string }>;
+  searchParams: Promise<{ success?: string; canceled?: string; error?: string; detail?: string }>;
 }) {
   const ctx = await requireYardUser();
-  const { success, canceled } = await props.searchParams;
+  const { success, canceled, error, detail } = await props.searchParams;
   const { yard } = ctx;
   const invoices = await db.invoice.findMany({
     where: { yardId: yard.id },
@@ -34,6 +34,17 @@ export default async function BillingPage(props: {
       )}
       {success && <div className="alert ok">Plan updated. You&apos;re all set!</div>}
       {canceled && <div className="alert error">Checkout canceled — no changes made.</div>}
+      {error && (
+        <div className="alert error">
+          We couldn&apos;t {error === "cancel" ? "cancel your plan" : "change your plan"} just now —
+          no charge was made. Please try again in a moment, or contact support if it keeps happening.
+          {detail && (
+            <div className="muted" style={{ marginTop: 6, fontSize: "0.8rem", wordBreak: "break-word" }}>
+              <code>{detail}</code>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <h3>Current plan</h3>

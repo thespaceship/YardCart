@@ -144,10 +144,13 @@ export async function getStripeSubscription(
   const sub = (await res.json()) as {
     id: string;
     status: string;
-    items: { data: Array<{ id: string; price?: { product?: string } }> };
+    items: { data: Array<{ id: string; price?: { product?: string | { id?: string } } }> };
   };
   const item = sub.items.data[0];
-  return { id: sub.id, status: sub.status, itemId: item?.id, productId: item?.price?.product };
+  // price.product is normally a string id, but tolerate an expanded object just in case
+  const rawProduct = item?.price?.product;
+  const productId = typeof rawProduct === "string" ? rawProduct : rawProduct?.id;
+  return { id: sub.id, status: sub.status, itemId: item?.id, productId };
 }
 
 /** Create a Stripe Product and return its id (fallback when a subscription item has no product). */

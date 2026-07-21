@@ -8,6 +8,9 @@ import { yardActive } from "@/lib/billing";
 import { meetsPlan } from "@/lib/entitlements";
 import { getOwnedYards } from "@/lib/yards";
 
+// The signed-in dashboard is private — keep it out of search indexes entirely.
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");

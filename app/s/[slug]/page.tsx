@@ -5,22 +5,29 @@ import { db } from "@/lib/db";
 import { yardActive } from "@/lib/billing";
 import { isDemoSlug, DEMO_SAMPLE_ZIP } from "@/lib/demo";
 import { trackEvent } from "@/lib/observability";
+import { absoluteUrl } from "@/lib/seo";
 import Storefront from "@/components/Storefront";
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await props.params;
   const yard = await db.yard.findUnique({ where: { slug }, select: { name: true, city: true, state: true } });
   if (!yard) return { title: "Not found" };
+  const canonical = absoluteUrl(`/s/${slug}`);
   if (isDemoSlug(slug)) {
     return {
       title: `YardCart live demo — ${yard.name} (fictional yard)`,
       description:
         "Interactive demo of a YardCart ordering page. Cedar Ridge is a fictional yard — browse, get delivery quotes, and place a simulated order.",
+      alternates: { canonical },
     };
   }
+  const title = `${yard.name} — Bulk delivery, order online`;
+  const description = `Order bulk mulch, topsoil, and more from ${yard.name}${yard.city ? ` in ${yard.city}, ${yard.state}` : ""}. Instant delivery pricing by ZIP code.`;
   return {
-    title: `${yard.name} — Bulk delivery, order online`,
-    description: `Order bulk mulch, topsoil, and more from ${yard.name}${yard.city ? ` in ${yard.city}, ${yard.state}` : ""}. Instant delivery pricing by ZIP code.`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, type: "website" },
   };
 }
 
@@ -48,8 +55,51 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
     qtyStep: p.qtyStep,
   }));
 
+  // LocalBusiness structured data for real, active storefronts — makes the yard
+  // eligible for local/AI results and gives its products as an offer catalog.
+  const showJsonLd = !demo && yard.acceptOnlineOrders && yardActive(yard);
+  const localBusinessJsonLd = showJsonLd
+    ? {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        name: yard.name,
+        url: absoluteUrl(`/s/${yard.slug}`),
+        ...(yard.aboutText ? { description: yard.aboutText } : {}),
+        ...(yard.phone ? { telephone: yard.phone } : {}),
+        ...(yard.addressLine || yard.city
+          ? {
+              address: {
+                "@type": "PostalAddress",
+                ...(yard.addressLine ? { streetAddress: yard.addressLine } : {}),
+                ...(yard.city ? { addressLocality: yard.city } : {}),
+                ...(yard.state ? { addressRegion: yard.state } : {}),
+                ...(yard.zip ? { postalCode: yard.zip } : {}),
+                addressCountry: "US",
+              },
+            }
+          : {}),
+        makesOffer: products.map((p) => ({
+          "@type": "Offer",
+          priceCurrency: "USD",
+          price: (p.priceCents / 100).toFixed(2),
+          availability: "https://schema.org/InStock",
+          itemOffered: {
+            "@type": "Product",
+            name: p.name,
+            ...(p.description ? { description: p.description } : {}),
+          },
+        })),
+      }
+    : null;
+
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+      {localBusinessJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        />
+      )}
       {demo && (
         <div style={{ background: "var(--warn-soft)", color: "var(--warn)", borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
           <div className="container" style={{ fontSize: "0.92rem" }}>

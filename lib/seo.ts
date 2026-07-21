@@ -1,0 +1,76 @@
+/**
+ * Canonical site metadata used for SEO: metadataBase, sitemap, robots, JSON-LD.
+ *
+ * SITE_URL is the production origin (no trailing slash). Override with
+ * NEXT_PUBLIC_SITE_URL in the environment; falls back to the live domain.
+ */
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://getyardcart.com"
+).replace(/\/$/, "");
+
+export const SITE_NAME = "YardCart";
+
+export const SITE_TAGLINE =
+  "Online ordering & dispatch for landscape supply yards";
+
+export const SITE_DESCRIPTION =
+  "Take bulk mulch, topsoil, and firewood orders online 24/7. Zone-based delivery pricing, a dispatch board your drivers actually use, and no per-order fees.";
+
+/** Absolute URL for a site-relative path. */
+export function absoluteUrl(path = "/"): string {
+  return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
+ * Organization + SoftwareApplication JSON-LD for the marketing site.
+ * Rendered on the homepage so search engines and AI agents can identify
+ * what YardCart is, who it's for, and how it's priced.
+ */
+export function organizationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: SITE_NAME,
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+    slogan: SITE_TAGLINE,
+    // logo: absoluteUrl("/icon.png"), // TODO: add a square PNG logo to /public and enable
+    sameAs: [] as string[], // add social/profile URLs here as they go live
+  };
+}
+
+export function softwareApplicationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    offers: {
+      "@type": "Offer",
+      price: "99",
+      priceCurrency: "USD",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: "99",
+        priceCurrency: "USD",
+        unitText: "MONTH",
+      },
+    },
+    audience: {
+      "@type": "BusinessAudience",
+      audienceType:
+        "Landscape supply yards, garden centers, mulch and topsoil yards, firewood sellers",
+    },
+    featureList: [
+      "24/7 online ordering for bulk landscape materials",
+      "Delivery pricing by ZIP code / zone",
+      "Truck capacity-aware delivery scheduling",
+      "Dispatch board and printable delivery tickets",
+      "Flat monthly price with no per-order fees",
+    ],
+  };
+}

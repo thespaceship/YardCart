@@ -2,12 +2,46 @@ import Link from "next/link";
 import MarketingShell from "@/components/MarketingShell";
 import { PLANS } from "@/lib/billing";
 import { formatCents } from "@/lib/money";
+import { SITE_NAME, absoluteUrl } from "@/lib/seo";
 
-export const metadata = { title: "Pricing" };
+export const metadata = {
+  title: "Pricing",
+  description:
+    "Flat monthly pricing for YardCart — from $99/mo with no per-order fees and no percentage of your sales. Starter, Pro, and Multi-yard plans. Free 14-day trial.",
+  alternates: { canonical: "/pricing" },
+  openGraph: {
+    title: "YardCart Pricing — flat monthly, no per-order fees",
+    description:
+      "From $99/mo. No per-order fees, no percentage of sales. Free 14-day trial.",
+    url: absoluteUrl("/pricing"),
+  },
+};
+
+const pricingJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: `${SITE_NAME} — landscape supply yard software`,
+  description:
+    "Online ordering and delivery dispatch software for landscape supply yards, garden centers, and firewood sellers.",
+  brand: { "@type": "Brand", name: SITE_NAME },
+  offers: Object.values(PLANS).map((plan) => ({
+    "@type": "Offer",
+    name: plan.name,
+    description: plan.blurb,
+    price: (plan.priceCents / 100).toFixed(2),
+    priceCurrency: "USD",
+    url: absoluteUrl("/pricing"),
+    availability: "https://schema.org/InStock",
+  })),
+};
 
 export default function PricingPage() {
   return (
     <MarketingShell>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingJsonLd) }}
+      />
       <section className="container" style={{ paddingTop: 48, textAlign: "center" }}>
         <h1>Simple flat pricing</h1>
         <p className="muted" style={{ maxWidth: 560, margin: "0 auto 32px" }}>

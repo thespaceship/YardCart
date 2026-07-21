@@ -5,7 +5,7 @@ import { signup } from "@/app/actions/auth";
 import { PLANS, normalizeTrialPlan } from "@/lib/billing";
 import AuthForm from "@/components/AuthForm";
 
-export const metadata = { title: "Create account" };
+export const metadata = { title: "Create account", robots: { index: false, follow: false } };
 
 export default async function SignupPage(props: {
   searchParams: Promise<{ plan?: string }>;

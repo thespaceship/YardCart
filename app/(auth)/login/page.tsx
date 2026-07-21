@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { login } from "@/app/actions/auth";
 import AuthForm from "@/components/AuthForm";
 
-export const metadata = { title: "Log in" };
+export const metadata = { title: "Log in", robots: { index: false, follow: false } };
 
 export default async function LoginPage() {
   const user = await getSessionUser();

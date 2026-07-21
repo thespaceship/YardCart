@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { PLANS, stripeEnabled } from "@/lib/billing";
 import { formatCents } from "@/lib/money";
 import { startCheckout, cancelPlan } from "@/app/actions/billing";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
 
 export const metadata = { title: "Billing" };
 
@@ -66,37 +67,51 @@ export default async function BillingPage(props: {
       </div>
 
       <div className="grid3">
-        {Object.entries(PLANS).map(([key, plan]) => (
-          <div className="card" key={key} style={key === "PRO" ? { borderColor: "var(--brand)" } : undefined}>
-            <h3>{plan.name}</h3>
-            <p style={{ fontSize: "1.6rem", fontWeight: 800, margin: "4px 0" }}>
-              {formatCents(plan.priceCents)}
-              <span className="muted" style={{ fontSize: "0.9rem", fontWeight: 400 }}>/mo</span>
-            </p>
-            <p className="muted">{plan.blurb}</p>
-            <ul style={{ paddingLeft: 18, margin: "0 0 16px" }}>
-              {plan.features.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-            <form action={startCheckout}>
-              <input type="hidden" name="plan" value={key} />
-              <button
-                className={`btn ${key === "PRO" ? "" : "secondary"}`}
-                disabled={yard.plan === key && yard.planStatus === "ACTIVE"}
-                style={{ width: "100%" }}
-              >
-                {yard.plan === key && yard.planStatus === "ACTIVE"
-                  ? "Current plan"
-                  : testMode
-                    ? "Activate (test)"
-                    : yard.planStatus === "ACTIVE"
-                      ? `Switch to ${plan.name}`
-                      : "Subscribe"}
-              </button>
-            </form>
-          </div>
-        ))}
+        {Object.entries(PLANS).map(([key, plan]) => {
+          const isCurrent = yard.plan === key && yard.planStatus === "ACTIVE";
+          const price = formatCents(plan.priceCents);
+          const isSwitch = !testMode && yard.planStatus === "ACTIVE";
+          const label = testMode ? "Activate (test)" : isSwitch ? `Switch to ${plan.name}` : "Subscribe";
+          const title = testMode
+            ? `Activate ${plan.name}?`
+            : isSwitch
+              ? `Switch to ${plan.name}?`
+              : `Start the ${plan.name} plan?`;
+          const message = testMode
+            ? `This activates the ${plan.name} plan at ${price}/mo.\n\nTest mode — no card is charged and a test invoice is recorded.`
+            : isSwitch
+              ? `You'll move to the ${plan.name} plan at ${price}/mo.\n\nThe prorated difference for the rest of this billing period is charged to your card on file right away.`
+              : `You'll continue to secure Stripe checkout to subscribe to ${plan.name} at ${price}/mo.\n\nYou won't be charged until you finish checkout.`;
+          const confirmLabel = testMode ? "Activate" : isSwitch ? `Switch to ${plan.name}` : "Continue to checkout";
+          return (
+            <div className="card" key={key} style={key === "PRO" ? { borderColor: "var(--brand)" } : undefined}>
+              <h3>{plan.name}</h3>
+              <p style={{ fontSize: "1.6rem", fontWeight: 800, margin: "4px 0" }}>
+                {price}
+                <span className="muted" style={{ fontSize: "0.9rem", fontWeight: 400 }}>/mo</span>
+              </p>
+              <p className="muted">{plan.blurb}</p>
+              <ul style={{ paddingLeft: 18, margin: "0 0 16px" }}>
+                {plan.features.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+              <form action={startCheckout}>
+                <input type="hidden" name="plan" value={key} />
+                <ConfirmSubmit
+                  label={label}
+                  disabled={isCurrent}
+                  disabledLabel="Current plan"
+                  title={title}
+                  message={message}
+                  confirmLabel={confirmLabel}
+                  className={`btn ${key === "PRO" ? "" : "secondary"}`}
+                  style={{ width: "100%" }}
+                />
+              </form>
+            </div>
+          );
+        })}
       </div>
 
       <div className="card">

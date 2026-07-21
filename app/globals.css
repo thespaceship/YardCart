@@ -208,6 +208,29 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 }
 footer.mfooter { border-top: 1px solid var(--line); margin-top: 80px; padding: 32px 0; color: var(--ink-soft); font-size: 0.88rem; }
 
+/* confirmation dialog */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(28, 36, 32, 0.45);
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+}
+.modal-card p:last-of-type { margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
 /* print ticket */
 @media print {
   .no-print { display: none !important; }

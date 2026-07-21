@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { updateSettings, sendSupportMessage } from "@/app/actions/catalog";
 import { deleteAccount } from "@/app/actions/account";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
 
 export const metadata = { title: "Settings" };
 
@@ -189,7 +190,15 @@ export default async function SettingsPage(props: {
             title={`Type "${yard.name}" exactly to confirm`}
           />
           <div style={{ marginTop: 12 }}>
-            <button className="btn danger">Delete account</button>
+            <ConfirmSubmit
+              label="Delete account"
+              title={`Delete ${yard.name}?`}
+              message={"This permanently deletes your yard, storefront, products, orders, and all associated data.\n\nThis cannot be undone."}
+              confirmLabel="Delete account"
+              cancelLabel="Keep my account"
+              className="btn danger"
+              confirmClassName="btn danger"
+            />
           </div>
         </form>
       </div>

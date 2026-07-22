@@ -43,7 +43,6 @@ export async function completeOnboarding(
   const minOrderCents = dollarsToCents(String(formData.get("minOrder") ?? "0"));
 
   const truckName = String(formData.get("truckName") ?? "Truck 1").trim().slice(0, 120);
-  const capacityYards = Math.max(1, parseFloat(String(formData.get("capacityYards") ?? "10")) || 10);
   const maxTripsPerDay = Math.max(1, parseInt(String(formData.get("maxTripsPerDay") ?? "6")) || 6);
 
   const selected: { name: string; category: string; unit: string; priceCents: number; description: string }[] = [];
@@ -96,7 +95,7 @@ export async function completeOnboarding(
         create: [{ name: zoneName, zipCodes: JSON.stringify(zips), deliveryFeeCents, minOrderCents }],
       },
       trucks: {
-        create: [{ name: truckName, capacityYards, maxTripsPerDay }],
+        create: [{ name: truckName, maxTripsPerDay }],
       },
     },
   });

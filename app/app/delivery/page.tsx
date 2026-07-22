@@ -174,7 +174,7 @@ export default async function DeliveryPage(props: {
     db.deliveryRate.findMany({ where: { zone: { yardId: ctx.yard.id } } }),
     db.truck.findMany({
       where: { yardId: ctx.yard.id, active: true },
-      select: { deliveryMethodId: true },
+      select: { deliveryMethodId: true, maxTripsPerDay: true },
     }),
   ]);
 
@@ -183,6 +183,15 @@ export default async function DeliveryPage(props: {
   // no trucks takes unlimited bookings. That's the safe default, but it has to be visible or an
   // owner will trust a limit that isn't running. Only surfaced to plans that can assign trucks.
   const methodsWithTrucks = new Set(trucks.map((t) => t.deliveryMethodId).filter(Boolean));
+  // Trucks per method, so each row shows the fleet standing behind the service it sells.
+  const fleetByMethod = new Map<string, { trucks: number; trips: number }>();
+  for (const t of trucks) {
+    if (!t.deliveryMethodId) continue;
+    const cur = fleetByMethod.get(t.deliveryMethodId) ?? { trucks: 0, trips: 0 };
+    cur.trucks += 1;
+    cur.trips += t.maxTripsPerDay;
+    fleetByMethod.set(t.deliveryMethodId, cur);
+  }
   const uncapped = meetsPlan(ctx.yard, "PRO")
     ? activeMethods.filter((m) => !methodsWithTrucks.has(m.id))
     : [];
@@ -193,11 +202,21 @@ export default async function DeliveryPage(props: {
     <div className="stack">
       <h1>Delivery</h1>
       {saved && <div className="alert ok">Delivery pricing saved.</div>}
-      <p className="muted" style={{ maxWidth: 700 }}>
-        A delivery method is a service you sell, not a single truck — three identical dump trucks
-        are one method, and customers see one option. YardCart reads the cart and picks the
-        cheapest method that can actually carry it.
-      </p>
+      <div className="alert info" style={{ maxWidth: 760 }}>
+        <strong>This page is what you sell. <Link href="/app/trucks">Trucks</Link> is what you
+        own.</strong>
+        <p style={{ margin: "6px 0 0" }}>
+          A delivery method is a <em>service</em> — &ldquo;dump truck delivery&rdquo; — not one
+          vehicle. Own three identical dump trucks and customers still see a single option. Set
+          what fits in one load and what it costs here; then on Trucks, say which of your vehicles
+          performs it and how many runs a day they make. That second part is what stops a day from
+          being overbooked.
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          Customers never choose a truck. YardCart reads their cart, works out what it needs, and
+          picks the cheapest method that can carry it.
+        </p>
+      </div>
 
       <h2 style={{ marginBottom: 0 }}>Methods</h2>
       {uncapped.length > 0 && (
@@ -213,6 +232,12 @@ export default async function DeliveryPage(props: {
         <details className="card" key={m.id}>
           <summary style={{ cursor: "pointer" }}>
             <strong>{m.name}</strong> <span className="muted">{limitSummary(m)}</span>{" "}
+            <span className="muted">
+              ·{" "}
+              {fleetByMethod.has(m.id)
+                ? `${fleetByMethod.get(m.id)!.trucks} truck${fleetByMethod.get(m.id)!.trucks === 1 ? "" : "s"}, ${fleetByMethod.get(m.id)!.trips} deliveries/day`
+                : "no trucks assigned"}
+            </span>{" "}
             {m.quoteOnly && <span className="badge neutral">Quote only</span>}{" "}
             {!m.active && <span className="badge neutral">Retired</span>}
           </summary>

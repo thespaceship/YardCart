@@ -1,7 +1,7 @@
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
-import { humanizeSlug } from "@/lib/categories";
+import { humanizeSlug, groupByCategory, toView } from "@/lib/categories";
 import { ensureDefaultCategories } from "@/lib/categories.server";
 import {
   upsertProduct,
@@ -210,7 +210,7 @@ function ProductForm({
 // forms can't be table rows, and a flex row can't align to a separate header.
 const CATEGORY_GRID: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(160px, 2fr) auto 90px 90px 100px auto",
+  gridTemplateColumns: "minmax(160px, 2fr) auto 90px 100px auto",
   gap: 8,
   alignItems: "center",
 };
@@ -228,8 +228,7 @@ function CategoryHeader() {
   return (
     <>
       <span className="muted" style={style}>Category</span>
-      <span className="muted" style={style}>Move</span>
-      <span className="muted" style={style}>Order</span>
+      <span className="muted" style={style}>Move order</span>
       <span className="muted" style={style}>Shown</span>
       <span className="muted" style={style}>Products</span>
       <span />
@@ -274,12 +273,6 @@ function CategoryRowForm({
           ↓
         </button>
       </div>
-      <input
-        name="sortOrder"
-        inputMode="numeric"
-        defaultValue={category.sortOrder}
-        aria-label={`Sort order for ${category.label}`}
-      />
       <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap", margin: 0 }}>
         <input type="checkbox" name="active" defaultChecked={category.active} style={{ width: "auto" }} />
         Shown
@@ -338,6 +331,8 @@ export default async function ProductsPage() {
   const hiddenWithProducts = categories.filter(
     (c) => !c.active && (countBySlug.get(c.slug) ?? 0) > 0
   );
+  // Same grouping the storefront uses, so the admin list mirrors what customers see.
+  const productSections = groupByCategory(products, categories.map(toView));
 
   return (
     <div className="stack">
@@ -352,8 +347,8 @@ export default async function ProductsPage() {
         </summary>
         <div style={{ marginTop: 12 }}>
           <p className="muted" style={{ maxWidth: 640 }}>
-            Categories group your products into sections on your storefront, top of this list
-            first. Use the arrows to reorder them. Add whatever fits your yard — sand, construction
+            Categories group your products into sections on your storefront, in the order shown
+            here. Use the arrows to move them. Add whatever fits your yard — sand, construction
             material, boulders. Renaming a category is safe; products stay put.
           </p>
           {hiddenWithProducts.length > 0 && (
@@ -383,37 +378,50 @@ export default async function ProductsPage() {
               <label>New category</label>
               <input name="label" required placeholder="Construction material" />
             </div>
-            <div style={{ width: 90 }}>
-              <label>Sort</label>
-              <input name="sortOrder" inputMode="numeric" defaultValue={(categories.length + 1) * 10} />
-            </div>
             <div>
               <input type="hidden" name="active" value="on" />
               <button className="btn">Add category</button>
             </div>
           </form>
+          <p className="muted" style={{ margin: "8px 0 0" }}>
+            New categories go to the bottom of the list — use the arrows to move them.
+          </p>
         </div>
       </details>
 
-      {products.map((p) => (
-        <details className="card" key={p.id}>
-          <summary style={{ cursor: "pointer", display: "flex", gap: 12, alignItems: "center" }}>
-            <strong>{p.name}</strong>
-            <span className="muted">
-              {formatCents(p.priceCents)} / {unitLabel(p.unit)}
+      {/* Grouped into the same sections customers see, so a long catalog stays navigable and the
+          storefront layout is obvious from here. */}
+      {productSections.map((section) => (
+        <div key={section.slug}>
+          <h2 style={{ margin: "18px 0 10px", fontSize: "1.05rem" }}>
+            {section.label}{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              {section.products.length} product{section.products.length === 1 ? "" : "s"}
             </span>
-            {!p.active && <span className="badge neutral">Hidden</span>}
-          </summary>
-          <div style={{ marginTop: 12 }}>
-            <ProductForm product={p} categories={categories} methods={methods} addOns={addOns} />
-            {p.active && (
-              <form action={deleteProduct} style={{ marginTop: 8 }}>
-                <input type="hidden" name="id" value={p.id} />
-                <button className="btn danger small">Hide product</button>
-              </form>
-            )}
+          </h2>
+          <div className="stack">
+            {section.products.map((p) => (
+              <details className="card" key={p.id}>
+                <summary style={{ cursor: "pointer", display: "flex", gap: 12, alignItems: "center" }}>
+                  <strong>{p.name}</strong>
+                  <span className="muted">
+                    {formatCents(p.priceCents)} / {unitLabel(p.unit)}
+                  </span>
+                  {!p.active && <span className="badge neutral">Hidden</span>}
+                </summary>
+                <div style={{ marginTop: 12 }}>
+                  <ProductForm product={p} categories={categories} methods={methods} addOns={addOns} />
+                  {p.active && (
+                    <form action={deleteProduct} style={{ marginTop: 8 }}>
+                      <input type="hidden" name="id" value={p.id} />
+                      <button className="btn danger small">Hide product</button>
+                    </form>
+                  )}
+                </div>
+              </details>
+            ))}
           </div>
-        </details>
+        </div>
       ))}
       <div className="card">
         <h3>Add a product</h3>

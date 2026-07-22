@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { meetsPlan } from "@/lib/entitlements";
@@ -11,7 +12,7 @@ function TruckForm({
   methods,
 }: {
   truck?: {
-    id: string; name: string; capacityYards: number; maxTripsPerDay: number;
+    id: string; name: string; maxTripsPerDay: number;
     active: boolean; deliveryMethodId: string | null;
   };
   methods: { id: string; name: string }[];
@@ -25,11 +26,7 @@ function TruckForm({
           <input name="name" required defaultValue={truck?.name} placeholder="F-550 Dump" />
         </div>
         <div>
-          <label>Capacity (yds/trip)</label>
-          <input name="capacityYards" inputMode="decimal" defaultValue={truck?.capacityYards ?? 10} />
-        </div>
-        <div>
-          <label>Max trips/day</label>
+          <label>Deliveries per day</label>
           <input name="maxTripsPerDay" inputMode="numeric" defaultValue={truck?.maxTripsPerDay ?? 6} />
         </div>
         <div>
@@ -68,22 +65,37 @@ export default async function TrucksPage() {
       select: { id: true, name: true },
     }),
   ]);
-  const daily = trucks.filter((t) => t.active).reduce((s, t) => s + t.capacityYards * t.maxTripsPerDay, 0);
+  const active = trucks.filter((t) => t.active);
+  const assigned = active.filter((t) => t.deliveryMethodId);
+  const dailyTrips = assigned.reduce((sum, t) => sum + t.maxTripsPerDay, 0);
 
   return (
     <div className="stack">
       <h1>Trucks</h1>
-      <p className="muted">
-        Truck capacity drives the delivery-date availability your customers see online. Current
-        daily capacity: <strong>{daily} yards</strong>.
-      </p>
+      <div className="alert info" style={{ maxWidth: 760 }}>
+        <strong>This page is what you own. <Link href="/app/delivery">Delivery</Link> is what you
+        sell.</strong>
+        <p style={{ margin: "6px 0 0" }}>
+          List your actual vehicles here and say which delivery service each one performs, plus how
+          many runs it makes in a day. That total is what decides which dates customers can still
+          book — a fully booked dump truck closes those dates for dump-truck orders only, leaving
+          your flatbed free.
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          A truck with no service assigned isn&apos;t counted, so its deliveries are never capped.
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          Right now: <strong>{assigned.length} of {active.length}</strong> trucks assigned,{" "}
+          <strong>{dailyTrips}</strong> deliveries a day.
+        </p>
+      </div>
       {trucks.map((t) => (
         <details className="card" key={t.id}>
           <summary style={{ cursor: "pointer" }}>
             <strong>{t.name}</strong>{" "}
             <span className="muted">
-              {t.capacityYards} yds × {t.maxTripsPerDay} trips/day
-              {t.deliveryMethod ? ` · ${t.deliveryMethod.name}` : " · no method assigned"}
+              {t.maxTripsPerDay} deliveries/day
+              {t.deliveryMethod ? ` · ${t.deliveryMethod.name}` : " · no service assigned"}
             </span>{" "}
             {!t.active && <span className="badge neutral">Out of service</span>}
           </summary>

@@ -6,7 +6,7 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
-import { categorySlug, moveInList, sortOrdersFor } from "@/lib/categories";
+import { categorySlug, moveInList, sortOrdersFor, SORT_STEP } from "@/lib/categories";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertPlan } from "@/lib/entitlements";
@@ -35,21 +35,33 @@ export async function upsertCategory(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const label = String(formData.get("label") ?? "").trim().slice(0, 60);
   if (!label) throw new Error("Category name is required");
-  const sortOrder = parseInt(String(formData.get("sortOrder") ?? "0")) || 0;
   const active = formData.get("active") === "on";
+  // Row forms don't render an order field — reordering is the arrows' job. A missing field must
+  // leave the existing order alone, not reset every category to 0.
+  const rawSort = formData.get("sortOrder");
+  const sortOrder = rawSort === null ? null : parseInt(String(rawSort)) || 0;
 
   if (id) {
     const existing = await db.category.findUnique({ where: { id } });
     if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
     // slug is deliberately not editable — Product.category stores it
-    await db.category.update({ where: { id }, data: { label, sortOrder, active } });
+    await db.category.update({
+      where: { id },
+      data: { label, active, ...(sortOrder === null ? {} : { sortOrder }) },
+    });
   } else {
+    // New categories land at the bottom; the arrows move them from there.
+    const last = await db.category.findFirst({
+      where: { yardId: ctx.yard.id },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
     await db.category.create({
       data: {
         yardId: ctx.yard.id,
         slug: await uniqueCategorySlug(ctx.yard.id, label),
         label,
-        sortOrder,
+        sortOrder: sortOrder ?? (last ? last.sortOrder + SORT_STEP : 0),
         active,
       },
     });
@@ -233,7 +245,6 @@ export async function upsertTruck(formData: FormData): Promise<void> {
   }
   const data = {
     name: String(formData.get("name") ?? "").trim().slice(0, 120),
-    capacityYards: Math.max(1, parseFloat(String(formData.get("capacityYards") ?? "10")) || 10),
     maxTripsPerDay: Math.max(1, parseInt(String(formData.get("maxTripsPerDay") ?? "6")) || 6),
     deliveryMethodId: methodId || null,
     active: formData.get("active") === "on",

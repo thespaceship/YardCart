@@ -238,8 +238,9 @@ model Truck {
   yardId        String
   yard          Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name          String
-  // Superseded by DeliveryMethod.maxYards for capacity math; kept for display and for trucks
-  // that have not been assigned a method yet (they fall into the legacy pool).
+  // Dead: superseded by DeliveryMethod.maxYards. No longer written or displayed — a per-truck
+  // yardage that affected nothing was actively misleading next to the method's real limits.
+  // Left in place because dropping a column needs a migration for no gain; safe to remove later.
   capacityYards Float    @default(10)
   maxTripsPerDay Int     @default(6)
   deliveryMethodId String?

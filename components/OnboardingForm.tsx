@@ -108,11 +108,7 @@ export default function OnboardingForm({
             <input name="truckName" defaultValue="Truck 1" />
           </div>
           <div>
-            <label>Capacity (yds/trip)</label>
-            <input name="capacityYards" inputMode="decimal" defaultValue="10" />
-          </div>
-          <div>
-            <label>Max trips/day</label>
+            <label>Deliveries per day</label>
             <input name="maxTripsPerDay" inputMode="numeric" defaultValue="6" />
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   SITE_DESCRIPTION,
   organizationJsonLd,
   softwareApplicationJsonLd,
+  websiteJsonLd,
 } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -59,6 +60,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}

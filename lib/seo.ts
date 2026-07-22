@@ -34,11 +34,27 @@ export function organizationJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE_NAME,
+    alternateName: ["YardCart", "Yard Cart", "getyardcart", "getyardcart.com"],
     url: SITE_URL,
     description: SITE_DESCRIPTION,
     slogan: SITE_TAGLINE,
     logo: absoluteUrl("/icon.png"),
     sameAs: [] as string[], // add social/profile URLs here as they go live
+  };
+}
+
+/**
+ * WebSite JSON-LD — helps Google resolve the site's display name in results
+ * ("YardCart" rather than the bare domain) and is a prerequisite signal for
+ * the site-name / sitelinks treatment.
+ */
+export function websiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    alternateName: "Yard Cart",
+    url: SITE_URL,
   };
 }
 

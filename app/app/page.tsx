@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
-import { computeDayLoads, orderYards } from "@/lib/capacity";
+import { computeDayLoads } from "@/lib/capacity";
 import { localNow, addDays } from "@/lib/tz";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -47,7 +47,8 @@ export default async function OverviewPage() {
 
   const loads = computeDayLoads(todaysOrders, trucks, [now.dateKey]);
   const load = loads.get(now.dateKey);
-  const pct = load && load.capacityYards > 0 ? Math.min(100, (load.usedYards / load.capacityYards) * 100) : 0;
+  const pct =
+    load && load.capacityTrips > 0 ? Math.min(100, (load.usedTrips / load.capacityTrips) * 100) : 0;
 
   return (
     <div className="stack">
@@ -77,12 +78,12 @@ export default async function OverviewPage() {
         </div>
       </div>
 
-      {load && load.capacityYards > 0 && (
+      {load && load.capacityTrips > 0 && (
         <div className="card">
           <div className="spread">
             <strong>Today&apos;s truck capacity</strong>
             <span className="muted">
-              {load.usedYards} / {load.capacityYards} yds committed
+              {load.usedTrips} / {load.capacityTrips} trips booked
             </span>
           </div>
           <div className={`meter ${pct > 85 ? "hot" : ""}`} style={{ marginTop: 8 }}>
@@ -126,7 +127,10 @@ export default async function OverviewPage() {
                   </td>
                   <td>
                     {o.items.map((i) => `${i.qty} ${unitLabel(i.unitSnap)} ${i.nameSnap}`).join(", ")}
-                    <div className="muted">{orderYards(o.items)} yds</div>
+                    <div className="muted">
+                      {o.deliveryMethodSnap || "Delivery"}
+                      {o.tripCount > 1 ? ` · ${o.tripCount} trips` : ""}
+                    </div>
                   </td>
                   <td>
                     {o.requestedDate

@@ -122,7 +122,10 @@ export async function placeOrder(input: PlaceOrderInput) {
     const horizon = horizonKeys(now, yard.maxAdvanceDays + 1);
     const openOrders = await db.order.findMany({
       where: { yardId: yard.id, status: { in: ["NEW", "SCHEDULED", "OUT_FOR_DELIVERY"] } },
-      include: { items: { select: { unitSnap: true, qty: true } } },
+      select: {
+        scheduledDate: true, requestedDate: true, status: true,
+        deliveryMethodId: true, tripCount: true,
+      },
     });
     const loads = computeDayLoads(openOrders, yard.trucks, horizon);
     const ok = availableDates({
@@ -130,7 +133,8 @@ export async function placeOrder(input: PlaceOrderInput) {
       minLeadDays: yard.minLeadDays,
       maxAdvanceDays: yard.maxAdvanceDays,
       orderCutoffHour: yard.orderCutoffHour,
-      neededYards: priced.totalYards,
+      neededTrips: quote?.trips ?? 1,
+      methodId: quote?.methodId || null,
       dayLoads: loads,
       deliveryDays: yard.deliveryDays,
     });

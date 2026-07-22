@@ -84,7 +84,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     const horizon = horizonKeys(now, yard.maxAdvanceDays + 1);
     const openOrders = await db.order.findMany({
       where: { yardId: yard.id, status: { in: ["NEW", "SCHEDULED", "OUT_FOR_DELIVERY"] } },
-      include: { items: { select: { unitSnap: true, qty: true } } },
+      select: {
+        scheduledDate: true, requestedDate: true, status: true,
+        deliveryMethodId: true, tripCount: true,
+      },
     });
     const loads = computeDayLoads(openOrders, yard.trucks, horizon);
     const dates = availableDates({
@@ -92,7 +95,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
       minLeadDays: yard.minLeadDays,
       maxAdvanceDays: yard.maxAdvanceDays,
       orderCutoffHour: yard.orderCutoffHour,
-      neededYards: priced.totalYards,
+      neededTrips: delivery.kind === "priced" ? delivery.selected.trips : 1,
+      methodId: delivery.kind === "priced" ? delivery.selected.methodId || null : null,
       dayLoads: loads,
       deliveryDays: yard.deliveryDays,
     });

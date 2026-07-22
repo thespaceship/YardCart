@@ -17,22 +17,34 @@ export const metadata = {
   },
 };
 
+// SoftwareApplication (not Product) — YardCart is SaaS, not a shopping item, so
+// this avoids Google's Merchant-listing evaluation while still conveying the
+// plan price range and per-tier offers.
+const planPrices = Object.values(PLANS).map((p) => p.priceCents);
 const pricingJsonLd = {
   "@context": "https://schema.org",
-  "@type": "Product",
-  name: `${SITE_NAME} — landscape supply yard software`,
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
   description:
     "Online ordering and delivery dispatch software for landscape supply yards, garden centers, and firewood sellers.",
-  brand: { "@type": "Brand", name: SITE_NAME },
-  offers: Object.values(PLANS).map((plan) => ({
-    "@type": "Offer",
-    name: plan.name,
-    description: plan.blurb,
-    price: (plan.priceCents / 100).toFixed(2),
+  url: absoluteUrl("/pricing"),
+  offers: {
+    "@type": "AggregateOffer",
     priceCurrency: "USD",
-    url: absoluteUrl("/pricing"),
-    availability: "https://schema.org/InStock",
-  })),
+    lowPrice: (Math.min(...planPrices) / 100).toFixed(2),
+    highPrice: (Math.max(...planPrices) / 100).toFixed(2),
+    offerCount: planPrices.length,
+    offers: Object.values(PLANS).map((plan) => ({
+      "@type": "Offer",
+      name: plan.name,
+      description: plan.blurb,
+      price: (plan.priceCents / 100).toFixed(2),
+      priceCurrency: "USD",
+      url: absoluteUrl("/pricing"),
+    })),
+  },
 };
 
 export default function PricingPage() {

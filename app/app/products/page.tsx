@@ -8,6 +8,7 @@ import {
   deleteProduct,
   upsertCategory,
   deleteCategory,
+  moveCategory,
 } from "@/app/actions/catalog";
 
 export const metadata = { title: "Products" };
@@ -204,32 +205,88 @@ function ProductForm({
   );
 }
 
-function CategoryRowForm({ category, count }: { category: CategoryRow; count: number }) {
+// Shared by the header and every row so the columns actually line up. Each row is its own <form>
+// with `display: contents`, which lets the form's children sit directly in the parent grid —
+// forms can't be table rows, and a flex row can't align to a separate header.
+const CATEGORY_GRID: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(160px, 2fr) auto 90px 90px 100px auto",
+  gap: 8,
+  alignItems: "center",
+};
+
+/**
+ * Header cells. These sit directly inside the same grid as the rows — a separate header grid
+ * sizes its columns independently of the rows' and the two drift apart.
+ */
+function CategoryHeader() {
+  const style: React.CSSProperties = {
+    fontSize: "0.78rem",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  };
   return (
-    <form action={upsertCategory} className="field-row" style={{ alignItems: "flex-end" }}>
+    <>
+      <span className="muted" style={style}>Category</span>
+      <span className="muted" style={style}>Move</span>
+      <span className="muted" style={style}>Order</span>
+      <span className="muted" style={style}>Shown</span>
+      <span className="muted" style={style}>Products</span>
+      <span />
+    </>
+  );
+}
+
+function CategoryRowForm({
+  category,
+  count,
+  isFirst,
+  isLast,
+}: {
+  category: CategoryRow;
+  count: number;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  return (
+    <form action={upsertCategory} style={{ display: "contents" }}>
       <input type="hidden" name="id" value={category.id} />
-      <div style={{ flex: 2 }}>
-        <input name="label" required defaultValue={category.label} aria-label={`Name for ${category.label}`} />
+      <input name="label" required defaultValue={category.label} aria-label={`Name for ${category.label}`} />
+      {/* Direction is bound into the action rather than sent as a field: React commandeers a
+          submit button's `name` to carry the server-action id, so name="direction" never arrives. */}
+      <div style={{ display: "flex", gap: 4 }}>
+        <button
+          className="btn secondary small"
+          formAction={moveCategory.bind(null, "up")}
+          disabled={isFirst}
+          aria-label={`Move ${category.label} up`}
+          title="Move up"
+        >
+          ↑
+        </button>
+        <button
+          className="btn secondary small"
+          formAction={moveCategory.bind(null, "down")}
+          disabled={isLast}
+          aria-label={`Move ${category.label} down`}
+          title="Move down"
+        >
+          ↓
+        </button>
       </div>
-      <div style={{ width: 90 }}>
-        <input
-          name="sortOrder"
-          inputMode="numeric"
-          defaultValue={category.sortOrder}
-          aria-label={`Sort order for ${category.label}`}
-        />
-      </div>
-      <div>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
-          <input type="checkbox" name="active" defaultChecked={category.active} style={{ width: "auto" }} />
-          Shown
-        </label>
-      </div>
-      <div>
-        <span className="muted" style={{ whiteSpace: "nowrap" }}>
-          {count} product{count === 1 ? "" : "s"}
-        </span>
-      </div>
+      <input
+        name="sortOrder"
+        inputMode="numeric"
+        defaultValue={category.sortOrder}
+        aria-label={`Sort order for ${category.label}`}
+      />
+      <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap", margin: 0 }}>
+        <input type="checkbox" name="active" defaultChecked={category.active} style={{ width: "auto" }} />
+        Shown
+      </label>
+      <span className="muted" style={{ whiteSpace: "nowrap" }}>
+        {count} product{count === 1 ? "" : "s"}
+      </span>
       <div style={{ display: "flex", gap: 6 }}>
         <button className="btn secondary small">Save</button>
         {category.active && (
@@ -295,9 +352,9 @@ export default async function ProductsPage() {
         </summary>
         <div style={{ marginTop: 12 }}>
           <p className="muted" style={{ maxWidth: 640 }}>
-            Categories group your products into sections on your storefront, lowest sort order
-            first. Add whatever fits your yard — sand, construction material, boulders. Renaming a
-            category is safe; products stay put.
+            Categories group your products into sections on your storefront, top of this list
+            first. Use the arrows to reorder them. Add whatever fits your yard — sand, construction
+            material, boulders. Renaming a category is safe; products stay put.
           </p>
           {hiddenWithProducts.length > 0 && (
             <div className="alert info">
@@ -308,9 +365,18 @@ export default async function ProductsPage() {
               if you want them off the page.
             </div>
           )}
-          {categories.map((c) => (
-            <CategoryRowForm key={c.id} category={c} count={countBySlug.get(c.slug) ?? 0} />
-          ))}
+          <div style={CATEGORY_GRID}>
+            <CategoryHeader />
+            {categories.map((c, i) => (
+              <CategoryRowForm
+                key={c.id}
+                category={c}
+                count={countBySlug.get(c.slug) ?? 0}
+                isFirst={i === 0}
+                isLast={i === categories.length - 1}
+              />
+            ))}
+          </div>
           <hr style={{ margin: "16px 0", border: 0, borderTop: "1px solid var(--line)" }} />
           <form action={upsertCategory} className="field-row" style={{ alignItems: "flex-end" }}>
             <div style={{ flex: 2 }}>

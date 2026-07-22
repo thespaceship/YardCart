@@ -73,3 +73,29 @@ export function groupByCategory<T extends { category: string }>(
 export function toView(c: Pick<Category, "slug" | "label" | "sortOrder">): CategoryView {
   return { slug: c.slug, label: c.label, sortOrder: c.sortOrder };
 }
+
+/** Spacing between sort orders, leaving room to slot a category in without renumbering. */
+export const SORT_STEP = 10;
+
+/**
+ * Move one item a single position within a list. Returns a new array, or the same one unchanged
+ * when the item is already at that end — callers treat "no move possible" as a no-op, not an error.
+ */
+export function moveInList<T>(items: T[], index: number, direction: "up" | "down"): T[] {
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || index >= items.length || target < 0 || target >= items.length) return items;
+  const next = [...items];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/**
+ * Sort orders for a list already in its intended order.
+ *
+ * Renumbering the whole list on every move (rather than swapping two values) keeps the even
+ * spacing intact and quietly repairs ties — two categories sharing a sort order can't be
+ * reordered by swapping, since swapping equal values changes nothing.
+ */
+export function sortOrdersFor(count: number): number[] {
+  return Array.from({ length: count }, (_, i) => i * SORT_STEP);
+}

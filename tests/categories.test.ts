@@ -4,6 +4,8 @@ import {
   humanizeSlug,
   groupByCategory,
   defaultCategoryRows,
+  moveInList,
+  sortOrdersFor,
   type CategoryView,
 } from "@/lib/categories";
 
@@ -54,6 +56,74 @@ describe("defaultCategoryRows", () => {
     ]);
     // gaps of 10 let an owner slot a new category between two existing ones
     expect(rows.map((r) => r.sortOrder)).toEqual([0, 10, 20, 30, 40, 50]);
+  });
+});
+
+describe("moveInList", () => {
+  const list = ["a", "b", "c", "d"];
+
+  it("moves an item up one position", () => {
+    expect(moveInList(list, 2, "up")).toEqual(["a", "c", "b", "d"]);
+  });
+
+  it("moves an item down one position", () => {
+    expect(moveInList(list, 1, "down")).toEqual(["a", "c", "b", "d"]);
+  });
+
+  it("returns the original array when already at the top", () => {
+    // identity, not a copy — the caller uses that to skip a pointless database write
+    expect(moveInList(list, 0, "up")).toBe(list);
+  });
+
+  it("returns the original array when already at the bottom", () => {
+    expect(moveInList(list, 3, "down")).toBe(list);
+  });
+
+  it("returns the original array for an index that isn't in the list", () => {
+    expect(moveInList(list, -1, "down")).toBe(list);
+    expect(moveInList(list, 99, "up")).toBe(list);
+  });
+
+  it("does not mutate the input", () => {
+    const original = [...list];
+    moveInList(list, 2, "up");
+    expect(list).toEqual(original);
+  });
+
+  it("handles a single-item list", () => {
+    expect(moveInList(["only"], 0, "up")).toEqual(["only"]);
+    expect(moveInList(["only"], 0, "down")).toEqual(["only"]);
+  });
+
+  it("round-trips: down then up returns to the start", () => {
+    expect(moveInList(moveInList(list, 1, "down"), 2, "up")).toEqual(list);
+  });
+});
+
+describe("sortOrdersFor", () => {
+  it("spaces orders so a category can be slotted between two others", () => {
+    expect(sortOrdersFor(4)).toEqual([0, 10, 20, 30]);
+  });
+
+  it("handles an empty list", () => {
+    expect(sortOrdersFor(0)).toEqual([]);
+  });
+
+  it("renumbering repairs ties that a plain swap could never reorder", () => {
+    // two categories sharing sortOrder 20 can't be swapped — swapping equal values is a no-op
+    const tied: CategoryView[] = [
+      { slug: "a", label: "Alpha", sortOrder: 20 },
+      { slug: "b", label: "Bravo", sortOrder: 20 },
+      { slug: "c", label: "Charlie", sortOrder: 20 },
+    ];
+    const moved = moveInList(tied, 2, "up");
+    const orders = sortOrdersFor(moved.length);
+    const renumbered = moved.map((c, i) => ({ ...c, sortOrder: orders[i] }));
+    expect(renumbered.map((c) => c.slug)).toEqual(["a", "c", "b"]);
+    expect(renumbered.map((c) => c.sortOrder)).toEqual([0, 10, 20]);
+    // and the new order actually survives a re-sort, which the tied version would not have
+    expect(groupByCategory([p("x", "a"), p("y", "b"), p("z", "c")], renumbered).map((s) => s.slug))
+      .toEqual(["a", "c", "b"]);
   });
 });
 

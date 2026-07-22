@@ -6,7 +6,7 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
-import { categorySlug } from "@/lib/categories";
+import { categorySlug, moveInList, sortOrdersFor } from "@/lib/categories";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertPlan } from "@/lib/entitlements";
@@ -54,6 +54,44 @@ export async function upsertCategory(formData: FormData): Promise<void> {
       },
     });
   }
+  revalidatePath("/app/products");
+}
+
+/**
+ * Nudge a category one position up or down the storefront.
+ *
+ * Renumbers the whole list rather than swapping the two sort orders: swapping is a no-op when
+ * the pair happens to share a value, and renumbering restores the even spacing at the same time.
+ *
+ * `direction` is a bound argument rather than a form field: React uses a submit button's own
+ * `name` attribute to carry the server-action id, so `name="direction"` on the button is
+ * overwritten and never arrives.
+ */
+export async function moveCategory(
+  rawDirection: string,
+  formData: FormData
+): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const direction = rawDirection === "up" ? "up" : "down";
+
+  const categories = await db.category.findMany({
+    where: { yardId: ctx.yard.id },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    select: { id: true },
+  });
+  const index = categories.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Not found");
+
+  const reordered = moveInList(categories, index, direction);
+  if (reordered === categories) return; // already at that end
+
+  const orders = sortOrdersFor(reordered.length);
+  await db.$transaction(
+    reordered.map((c, i) =>
+      db.category.update({ where: { id: c.id }, data: { sortOrder: orders[i] } })
+    )
+  );
   revalidatePath("/app/products");
 }
 

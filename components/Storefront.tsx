@@ -17,6 +17,18 @@ type PublicProduct = {
   qtyStep: number;
 };
 
+type MethodQuote = {
+  methodId: string;
+  name: string;
+  description: string;
+  trips: number;
+  binding: "yards" | "weight" | "pallets" | null;
+  rateCents: number;
+  addOns: { id: string; name: string; feeCents: number }[];
+  addOnCents: number;
+  feeCents: number;
+};
+
 type Quote = {
   zone: { name: string; deliveryFeeCents: number; minOrderCents: number };
   priced: {
@@ -28,6 +40,7 @@ type Quote = {
     minOrderCents: number;
   };
   dates: string[];
+  delivery: { selected: MethodQuote; options: MethodQuote[] } | null;
 };
 
 const UNIT_LABELS: Record<string, string> = {
@@ -74,6 +87,8 @@ export default function Storefront({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // Empty = let the yard's rules pick. Only set when the customer deliberately overrides.
+  const [methodId, setMethodId] = useState("");
   const [form, setForm] = useState({
     customerName: "",
     customerPhone: "",
@@ -104,7 +119,7 @@ export default function Storefront({
       const res = await fetch(`/api/storefront/${slug}/quote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zip, cart: cartLines }),
+        body: JSON.stringify({ zip, cart: cartLines, methodId: methodId || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -122,13 +137,13 @@ export default function Storefront({
       setLoadingQuote(false);
       setZipChecked(true);
     }
-  }, [zip, cartLines, slug, selectedDate]);
+  }, [zip, cartLines, slug, selectedDate, methodId]);
 
-  // re-quote when cart changes after a ZIP has been checked
+  // re-quote when the cart or the chosen truck changes after a ZIP has been checked
   useEffect(() => {
     if (zipChecked && cartLines.length > 0) void fetchQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(cartLines)]);
+  }, [JSON.stringify(cartLines), methodId]);
 
   const setQty = (p: PublicProduct, raw: number) => {
     const qty = isFinite(raw) ? Math.max(0, Math.min(p.maxQty, raw)) : 0;
@@ -169,6 +184,7 @@ export default function Storefront({
           zip,
           requestedDate: selectedDate,
           cart: cartLines,
+          deliveryMethodId: quote.delivery?.selected.methodId,
           website: "", // honeypot stays empty
         }),
       });
@@ -333,11 +349,46 @@ export default function Storefront({
               <>
                 <div className="alert ok">
                   We deliver to {zip} ({quote.zone.name}). Delivery fee:{" "}
-                  <strong>{usd(quote.zone.deliveryFeeCents)}</strong>
+                  <strong>{usd(quote.priced.deliveryCents)}</strong>
                   {quote.zone.minOrderCents > 0 && (
                     <> · Minimum order: {usd(quote.zone.minOrderCents)} of material</>
                   )}
                 </div>
+
+                {quote.delivery && (
+                  <div style={{ margin: "12px 0" }}>
+                    <label htmlFor="method">Delivered by</label>
+                    {quote.delivery.options.length > 1 ? (
+                      <select
+                        id="method"
+                        value={methodId || quote.delivery.selected.methodId}
+                        onChange={(e) => setMethodId(e.target.value)}
+                      >
+                        {quote.delivery.options.map((o) => (
+                          <option key={o.methodId} value={o.methodId}>
+                            {o.name} — {usd(o.feeCents)}
+                            {o.trips > 1 ? ` (${o.trips} trips)` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div style={{ fontWeight: 700 }}>{quote.delivery.selected.name}</div>
+                    )}
+                    <p className="muted" style={{ margin: "6px 0 0" }}>
+                      {quote.delivery.selected.description}
+                      {quote.delivery.selected.trips > 1 && (
+                        <>
+                          {quote.delivery.selected.description ? " · " : ""}
+                          Your order needs {quote.delivery.selected.trips} trips
+                          {quote.delivery.selected.binding === "weight" && " (weight limit)"}
+                          {quote.delivery.selected.binding === "yards" && " (volume limit)"}
+                          {quote.delivery.selected.binding === "pallets" && " (pallet limit)"}.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                )}
+
                 <table style={{ maxWidth: 480 }}>
                   <tbody>
                     <tr>
@@ -345,9 +396,26 @@ export default function Storefront({
                       <td className="right">{usd(quote.priced.materialCents)}</td>
                     </tr>
                     <tr>
-                      <td>Delivery</td>
-                      <td className="right">{usd(quote.priced.deliveryCents)}</td>
+                      <td>
+                        Delivery
+                        {quote.delivery && quote.delivery.selected.trips > 1 && (
+                          <span className="muted"> × {quote.delivery.selected.trips} trips</span>
+                        )}
+                      </td>
+                      <td className="right">
+                        {usd(
+                          quote.delivery
+                            ? quote.delivery.selected.rateCents
+                            : quote.priced.deliveryCents
+                        )}
+                      </td>
                     </tr>
+                    {quote.delivery?.selected.addOns.map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.name}</td>
+                        <td className="right">{usd(a.feeCents)}</td>
+                      </tr>
+                    ))}
                     <tr>
                       <td>
                         <strong>Total</strong>

@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {meetsPlan(yard, "PRO") && <Link href="/app/dispatch">Dispatch</Link>}
             <Link href="/app/products">Products</Link>
             <Link href="/app/zones">Zones</Link>
+            <Link href="/app/delivery">Delivery</Link>
             {meetsPlan(yard, "PRO") && <Link href="/app/trucks">Trucks</Link>}
             {meetsPlan(yard, "PRO") && <Link href="/app/reports">Reports</Link>}
             <Link href="/app/mailbox">Mailbox</Link>

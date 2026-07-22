@@ -99,7 +99,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 </tr>
               ))}
               <tr>
-                <td>Delivery fee</td>
+                <td>
+                  Delivery fee
+                  {order.deliveryMethodSnap && (
+                    <span className="muted">
+                      {" "}
+                      — {order.deliveryMethodSnap}
+                      {order.tripCount > 1 ? ` × ${order.tripCount} trips` : ""}
+                    </span>
+                  )}
+                </td>
                 <td className="right">{formatCents(order.deliveryCents)}</td>
               </tr>
               <tr>

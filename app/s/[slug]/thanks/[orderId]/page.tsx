@@ -48,7 +48,11 @@ export default async function ThanksPage(props: {
               </tr>
             ))}
             <tr>
-              <td>Delivery</td>
+              <td>
+                Delivery
+                {order.deliveryMethodSnap && ` — ${order.deliveryMethodSnap}`}
+                {order.tripCount > 1 && ` (${order.tripCount} trips)`}
+              </td>
               <td className="right">{formatCents(order.deliveryCents)}</td>
             </tr>
             <tr>

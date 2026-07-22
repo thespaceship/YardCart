@@ -228,7 +228,7 @@ function CategoryHeader() {
   return (
     <>
       <span className="muted" style={style}>Category</span>
-      <span className="muted" style={style}>Move order</span>
+      <span className="muted" style={style}>Sort</span>
       <span className="muted" style={style}>Shown</span>
       <span className="muted" style={style}>Products</span>
       <span />

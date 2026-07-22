@@ -75,7 +75,11 @@ export default async function TicketPage(props: { params: Promise<{ id: string }
               </tr>
             ))}
             <tr>
-              <td>Delivery</td>
+              <td>
+                Delivery
+                {order.deliveryMethodSnap && ` — ${order.deliveryMethodSnap}`}
+                {order.tripCount > 1 && ` (${order.tripCount} trips)`}
+              </td>
               <td className="right">{formatCents(order.deliveryCents)}</td>
             </tr>
           </tbody>

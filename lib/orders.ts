@@ -2,6 +2,12 @@ import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { isDemoSlug } from "./demo";
 import { priceCart, type CartLine } from "./pricing";
+import {
+  selectDelivery,
+  deliveryLinesFor,
+  rateTableFor,
+  selectionMessage,
+} from "./delivery";
 import { matchZone } from "./zones";
 import { sendEmail, emailShell, escapeHtml } from "./mailer";
 import { trackEvent } from "./observability";
@@ -24,6 +30,7 @@ export type PlaceOrderInput = {
   cart: CartLine[];
   paymentStatus?: string;
   internalNotes?: string;
+  deliveryMethodId?: string; // customer/staff preference; re-validated below, never trusted
 };
 
 export class OrderError extends Error {
@@ -45,9 +52,11 @@ export async function placeOrder(input: PlaceOrderInput) {
   const yard = await db.yard.findUnique({
     where: { id: input.yardId },
     include: {
-      zones: true,
-      products: { where: { active: true } },
+      zones: { include: { rates: true } },
+      products: { where: { active: true }, include: { methods: true, addOns: true } },
       trucks: { where: { active: true } },
+      deliveryMethods: { where: { active: true } },
+      deliveryAddOns: { where: { active: true } },
     },
   });
   if (!yard) throw new OrderError("yard_not_found", "Yard not found");
@@ -69,7 +78,25 @@ export async function placeOrder(input: PlaceOrderInput) {
     throw new OrderError("out_of_area", "Sorry, that ZIP code is outside our delivery area.");
   }
 
-  const priced = priceCart(yard.products, zone, dedupeCart(input.cart));
+  // Resolve delivery from the cart itself. The client sends a preferred method, but the fee is
+  // always recomputed here — a stale or hand-edited choice must never set the price.
+  const materialOnly = priceCart(yard.products, zone, dedupeCart(input.cart), 0);
+  const delivery = selectDelivery({
+    lines: deliveryLinesFor(yard.products, materialOnly.lines),
+    methods: yard.deliveryMethods,
+    addOns: yard.deliveryAddOns,
+    rates: zone ? rateTableFor(zone) : { fallbackCents: 0, byMethodId: {} },
+    preferredMethodId: input.deliveryMethodId,
+  });
+  if (input.channel === "ONLINE" && delivery.kind !== "priced" && delivery.kind !== "none") {
+    throw new OrderError(
+      delivery.kind,
+      selectionMessage(delivery, yard.phone) ?? "We can't deliver this order online."
+    );
+  }
+  const quote = delivery.kind === "priced" ? delivery.selected : null;
+
+  const priced = priceCart(yard.products, zone, dedupeCart(input.cart), quote?.feeCents ?? 0);
   if (priced.lines.length === 0) throw new OrderError("empty_cart", "Your cart is empty.");
   if (input.channel === "ONLINE" && !priced.meetsMinOrder) {
     throw new OrderError(
@@ -95,7 +122,10 @@ export async function placeOrder(input: PlaceOrderInput) {
     const horizon = horizonKeys(now, yard.maxAdvanceDays + 1);
     const openOrders = await db.order.findMany({
       where: { yardId: yard.id, status: { in: ["NEW", "SCHEDULED", "OUT_FOR_DELIVERY"] } },
-      include: { items: { select: { unitSnap: true, qty: true } } },
+      select: {
+        scheduledDate: true, requestedDate: true, status: true,
+        deliveryMethodId: true, tripCount: true,
+      },
     });
     const loads = computeDayLoads(openOrders, yard.trucks, horizon);
     const ok = availableDates({
@@ -103,7 +133,8 @@ export async function placeOrder(input: PlaceOrderInput) {
       minLeadDays: yard.minLeadDays,
       maxAdvanceDays: yard.maxAdvanceDays,
       orderCutoffHour: yard.orderCutoffHour,
-      neededYards: priced.totalYards,
+      neededTrips: quote?.trips ?? 1,
+      methodId: quote?.methodId || null,
       dayLoads: loads,
       deliveryDays: yard.deliveryDays,
     });
@@ -130,6 +161,13 @@ export async function placeOrder(input: PlaceOrderInput) {
     materialCents: priced.materialCents,
     deliveryCents: priced.deliveryCents,
     totalCents: priced.totalCents,
+    // Empty methodId = the implicit fallback method, which has no row to point at.
+    deliveryMethodId: quote?.methodId || null,
+    deliveryMethodSnap: quote?.methodId ? quote.name : "",
+    tripCount: quote?.trips ?? 1,
+    deliveryAddOnsSnap: JSON.stringify(
+      (quote?.addOns ?? []).map((a) => ({ name: a.name, feeCents: a.feeCents }))
+    ),
     paymentStatus: input.paymentStatus ?? (yard.paymentOnDelivery ? "PAY_ON_DELIVERY" : "UNPAID"),
     requestedDate,
     items: {
@@ -181,8 +219,13 @@ export async function placeOrder(input: PlaceOrderInput) {
         )}</td><td style="padding:4px 8px;text-align:right">${formatCents(i.totalCents)}</td></tr>`
     )
     .join("");
+  const deliveryDetail = order.deliveryMethodSnap
+    ? ` <span style="color:#666">(${escapeHtml(order.deliveryMethodSnap)}${
+        order.tripCount > 1 ? ` × ${order.tripCount} trips` : ""
+      })</span>`
+    : "";
   const totals = `<p><strong>Material:</strong> ${formatCents(order.materialCents)}<br/>
-  <strong>Delivery:</strong> ${formatCents(order.deliveryCents)}<br/>
+  <strong>Delivery:</strong> ${formatCents(order.deliveryCents)}${deliveryDetail}<br/>
   <strong>Total:</strong> ${formatCents(order.totalCents)}</p>`;
   const safeAddress = `${escapeHtml(order.addressLine)}, ${escapeHtml(order.zip)}`;
 

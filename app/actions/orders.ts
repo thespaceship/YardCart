@@ -148,6 +148,7 @@ export async function createPhoneOrder(
       placementNotes: String(formData.get("placementNotes") ?? ""),
       internalNotes: String(formData.get("internalNotes") ?? ""),
       requestedDate: String(formData.get("requestedDate") ?? "") || undefined,
+      deliveryMethodId: String(formData.get("deliveryMethodId") ?? "") || undefined,
       cart,
     });
   } catch (e) {

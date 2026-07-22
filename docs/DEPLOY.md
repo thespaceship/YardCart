@@ -52,3 +52,48 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
 - [ ] Rate limits verified in prod (single instance) — move to Upstash if scaling out
 - [x] Privacy/Terms contact email set to support@getyardcart.com and security page to
       security@getyardcart.com — **create both aliases (forwarding is fine) and monitor them**
+
+## Running migrations against Neon
+
+`DATABASE_URL` points at Neon's **pooled** endpoint (`...-pooler...`), which is right for the
+app at runtime but wrong for schema migrations.
+
+- `prisma migrate deploy` — what the build runs (`npm run build`). Applies the committed
+  migration files in order. Needs no shadow database and does no drift detection, so it is
+  safe over the pooler. **Production is unaffected by the caveat below.**
+- `prisma migrate dev` — needs a *shadow database* to diff against, and tries to create one on
+  the same server. Over a pooled Neon connection with no shadow/direct URL configured this
+  misbehaves: on 2026-07-22 it left the Phase 2a delivery tables in the dev branch with no
+  migration file recording them, which would have shipped a schema production could never
+  reproduce. Caught by the next `migrate dev` reporting drift.
+
+**This is now configured.** `DIRECT_URL` holds Neon's direct endpoint — the same host without
+the `-pooler` suffix — and the datasource declares it:
+
+```prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // pooled — app runtime
+  directUrl = env("DIRECT_URL")    // direct — migrations & introspection
+}
+```
+
+`DIRECT_URL` must exist in Vercel (Production + Preview, marked Sensitive) as well as locally,
+or `prisma migrate deploy` fails during the build.
+
+> **The trap:** these are the same database reached two ways, and the hosts must differ. Removing
+> `-pooler` from `DATABASE_URL` instead of adding a separate `DIRECT_URL` silently drops connection
+> pooling for the running app. Everything works locally; production exhausts Neon's connection
+> limit under load. If in doubt, re-copy both strings from the Neon Console.
+
+After any schema change, confirm the migrations and the schema agree — this must print an
+empty migration:
+
+```bash
+npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
+```
+
+If `migrate dev` ever reports it cannot create the shadow database, the Neon role lacks CREATEDB.
+Create a throwaway Neon branch, set `SHADOW_DATABASE_URL` to its direct string, and add
+`shadowDatabaseUrl = env("SHADOW_DATABASE_URL")` to the datasource. Prisma resets that branch on
+every run, so never point it at data you care about.

@@ -16,6 +16,7 @@ const bodySchema = z.object({
   placementNotes: z.string().max(1000).optional(),
   requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   cart: z.array(z.object({ productId: z.string(), qty: z.number().positive() })).min(1).max(50),
+  deliveryMethodId: z.string().optional(), // preference only; placeOrder re-validates the fee
   website: z.string().optional(), // honeypot
 });
 
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
       placementNotes: parsed.data.placementNotes,
       requestedDate: parsed.data.requestedDate,
       cart: parsed.data.cart,
+      deliveryMethodId: parsed.data.deliveryMethodId,
     });
 
     return NextResponse.json({ ok: true, orderId: order.id, number: order.number });

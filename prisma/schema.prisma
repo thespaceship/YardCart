@@ -2,9 +2,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// `url` is Neon's pooled endpoint (host contains `-pooler`) and is what the running app uses.
+// `directUrl` is the same database over a direct connection, used only by migrate/introspect/studio:
+// `migrate dev` needs to create a shadow database, which it cannot do through the pooler. Getting
+// these two crossed is silent — see docs/DEPLOY.md.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -65,13 +70,35 @@ model Yard {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  users    User[]
-  members  YardMember[]
-  products Product[]
-  zones    Zone[]
-  trucks   Truck[]
-  orders   Order[]
-  invoices Invoice[]
+  users            User[]
+  members          YardMember[]
+  products         Product[]
+  categories       Category[]
+  zones            Zone[]
+  trucks           Truck[]
+  orders           Order[]
+  invoices         Invoice[]
+  deliveryMethods  DeliveryMethod[]
+  deliveryAddOns   DeliveryAddOn[]
+}
+
+// Storefront product categories, owned by the yard. `slug` is what Product.category stores, so it
+// is immutable once created (renaming would orphan products); `label` is the display name and is
+// freely editable. Every yard starts with the six built-ins and can add its own (sand, construction
+// material, …). sortOrder drives the section order customers see on the storefront.
+model Category {
+  id        String   @id @default(cuid())
+  yardId    String
+  yard      Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  slug      String
+  label     String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([yardId, slug])
+  @@index([yardId])
 }
 
 model Product {
@@ -79,7 +106,7 @@ model Product {
   yardId      String
   yard        Yard        @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name        String
-  category    String      @default("mulch") // mulch | soil | compost | stone | firewood | other
+  category    String      @default("mulch") // Category.slug for this yard (see model Category)
   description String      @default("")
   unit        String      @default("cubic_yard") // cubic_yard | half_yard | bag | cord | face_cord | ton
   priceCents  Int
@@ -88,9 +115,17 @@ model Product {
   qtyStep     Float       @default(0.5)
   active      Boolean     @default(true)
   sortOrder   Int         @default(0)
+  // How much of a truck one unit consumes, for delivery-method limits (see lib/load.ts).
+  // yardsPerUnit null = derive from `unit` (a cubic yard is 1, a half yard 0.5, else 0).
+  // 0 on weight/pallets means "don't count this product toward that limit".
+  yardsPerUnit     Float?
+  weightLbsPerUnit Float   @default(0)
+  palletsPerUnit   Float   @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+  methods     ProductMethod[]
+  addOns      ProductAddOn[]
 }
 
 model Zone {
@@ -99,12 +134,103 @@ model Zone {
   yard             Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name             String
   zipCodes         String   // JSON array of ZIP strings
+  // Fallback fee, used when no DeliveryRate row exists for (zone, method). Also the tiebreak
+  // when a ZIP matches several zones — keep it set even once the rate grid is filled in.
   deliveryFeeCents Int
   minOrderCents    Int      @default(0)
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   orders           Order[]
+  rates            DeliveryRate[]
+}
+
+/**
+ * A way the yard delivers — "Medium dump truck", "Flatbed w/ forklift" — not a physical truck.
+ * Three identical dump trucks are one method; the customer sees one option.
+ *
+ * Limits are per delivery. 0 means "don't enforce this dimension", which is how a yard says
+ * "cap gravel by weight but let mulch go by volume". A cart's trip count is the ceiling of the
+ * hardest-binding dimension — see lib/load.ts.
+ */
+model DeliveryMethod {
+  id                 String   @id @default(cuid())
+  yardId             String
+  yard               Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  name               String
+  description        String   @default("")
+  maxYards           Float    @default(0)
+  maxWeightLbs       Float    @default(0)
+  maxPallets         Float    @default(0)
+  allowMultipleTrips Boolean  @default(true)
+  quoteOnly          Boolean  @default(false) // too big to price online — "call for a quote"
+  sortOrder          Int      @default(0)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  rates    DeliveryRate[]
+  products ProductMethod[]
+  trucks   Truck[]
+  orders   Order[]
+
+  @@index([yardId])
+}
+
+/** One cell of the zone × method fee grid. Sparse: a missing row falls back to Zone.deliveryFeeCents. */
+model DeliveryRate {
+  id       String         @id @default(cuid())
+  zoneId   String
+  zone     Zone           @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  methodId String
+  method   DeliveryMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  feeCents Int
+
+  @@unique([zoneId, methodId])
+  @@index([methodId])
+}
+
+/**
+ * Equipment or service billed on top of the delivery fee — a forklift to get pallets off the
+ * truck, say. Applied automatically when the cart contains a product that requires it.
+ */
+model DeliveryAddOn {
+  id        String   @id @default(cuid())
+  yardId    String
+  yard      Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  name      String
+  feeCents  Int      @default(0)
+  perTrip   Boolean  @default(true) // charged per trip, not once per order
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products ProductAddOn[]
+
+  @@index([yardId])
+}
+
+/** Products a method may carry. No rows for a product = it can go on any method. */
+model ProductMethod {
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  methodId  String
+  method    DeliveryMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+
+  @@id([productId, methodId])
+  @@index([methodId])
+}
+
+/** Equipment a product requires in order to be delivered. */
+model ProductAddOn {
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addOnId   String
+  addOn     DeliveryAddOn @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  @@id([productId, addOnId])
+  @@index([addOnId])
 }
 
 model Truck {
@@ -112,8 +238,12 @@ model Truck {
   yardId        String
   yard          Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name          String
+  // Superseded by DeliveryMethod.maxYards for capacity math; kept for display and for trucks
+  // that have not been assigned a method yet (they fall into the legacy pool).
   capacityYards Float    @default(10)
   maxTripsPerDay Int     @default(6)
+  deliveryMethodId String?
+  deliveryMethod   DeliveryMethod? @relation(fields: [deliveryMethodId], references: [id], onDelete: SetNull)
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   orders        Order[]
@@ -139,6 +269,12 @@ model Order {
   materialCents  Int
   deliveryCents  Int
   totalCents     Int
+  // Snapshots so history survives a method being renamed or retired, same as OrderItem.nameSnap.
+  deliveryMethodId   String?
+  deliveryMethod     DeliveryMethod? @relation(fields: [deliveryMethodId], references: [id], onDelete: SetNull)
+  deliveryMethodSnap String  @default("")
+  tripCount          Int     @default(1)
+  deliveryAddOnsSnap String  @default("[]") // JSON [{name, feeCents}] actually charged
   paymentStatus  String      @default("UNPAID") // UNPAID | PAY_ON_DELIVERY | PAID
   paymentMethod  String      @default("") // cash | check | card | online_test
   requestedDate  DateTime? // customer's requested delivery date

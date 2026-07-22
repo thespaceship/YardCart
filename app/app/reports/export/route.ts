@@ -30,7 +30,7 @@ export async function GET() {
   });
 
   const rows: string[] = [
-    ["InvoiceNo", "Customer", "InvoiceDate", "DueDate", "Item", "ItemQuantity", "ItemRate", "ItemAmount", "DeliveryFee", "Total", "PaymentMethod"].join(","),
+    ["InvoiceNo", "Customer", "InvoiceDate", "DueDate", "Item", "ItemQuantity", "ItemRate", "ItemAmount", "DeliveryFee", "DeliveryMethod", "Trips", "Total", "PaymentMethod"].join(","),
   ];
   for (const o of orders) {
     const date = (o.deliveredAt ?? o.createdAt).toISOString().slice(0, 10);
@@ -46,6 +46,8 @@ export async function GET() {
           (i.unitCents / 100).toFixed(2),
           (i.totalCents / 100).toFixed(2),
           idx === 0 ? (o.deliveryCents / 100).toFixed(2) : "",
+          idx === 0 ? csvEscape(o.deliveryMethodSnap) : "",
+          idx === 0 ? o.tripCount : "",
           idx === 0 ? (o.totalCents / 100).toFixed(2) : "",
           idx === 0 ? csvEscape(o.paymentMethod || "on_delivery") : "",
         ].join(",")

@@ -41,10 +41,18 @@ export function clampQty(product: Pick<Product, "minQty" | "maxQty" | "qtyStep">
   return Math.round(clamped * 100) / 100;
 }
 
+/**
+ * Price a cart.
+ *
+ * `deliveryCents` comes from the resolved delivery method (see lib/delivery.ts) — it already
+ * accounts for trips and equipment add-ons. Omit it and the zone's flat fee is used, which is
+ * how a yard that hasn't set up delivery methods still prices exactly as it always has.
+ */
 export function priceCart(
   products: Product[],
   zone: Pick<Zone, "deliveryFeeCents" | "minOrderCents"> | null,
-  cart: CartLine[]
+  cart: CartLine[],
+  deliveryCents?: number
 ): PricedCart {
   const byId = new Map(products.map((p) => [p.id, p]));
   const lines: PricedLine[] = [];
@@ -64,14 +72,14 @@ export function priceCart(
     });
   }
   const materialCents = lines.reduce((s, l) => s + l.totalCents, 0);
-  const deliveryCents = zone ? zone.deliveryFeeCents : 0;
+  const resolvedDeliveryCents = deliveryCents ?? (zone ? zone.deliveryFeeCents : 0);
   const minOrderCents = zone ? zone.minOrderCents : 0;
   const totalYards = lines.reduce((s, l) => s + lineYards(l.unitSnap, l.qty), 0);
   return {
     lines,
     materialCents,
-    deliveryCents,
-    totalCents: materialCents + deliveryCents,
+    deliveryCents: resolvedDeliveryCents,
+    totalCents: materialCents + resolvedDeliveryCents,
     totalYards: Math.round(totalYards * 100) / 100,
     meetsMinOrder: materialCents >= minOrderCents,
     minOrderCents,

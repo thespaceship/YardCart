@@ -6,6 +6,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { defaultCategoryRows } from "../lib/categories";
 
 const db = new PrismaClient();
 
@@ -57,6 +58,10 @@ async function main() {
       role: "OWNER",
       yardId: yard.id,
     },
+  });
+
+  await db.category.createMany({
+    data: defaultCategoryRows().map((c) => ({ ...c, yardId: yard.id })),
   });
 
   const productData = [

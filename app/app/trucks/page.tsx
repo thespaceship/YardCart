@@ -6,9 +6,16 @@ import { upsertTruck } from "@/app/actions/catalog";
 
 export const metadata = { title: "Trucks" };
 
-function TruckForm({ truck }: { truck?: {
-  id: string; name: string; capacityYards: number; maxTripsPerDay: number; active: boolean;
-} }) {
+function TruckForm({
+  truck,
+  methods,
+}: {
+  truck?: {
+    id: string; name: string; capacityYards: number; maxTripsPerDay: number;
+    active: boolean; deliveryMethodId: string | null;
+  };
+  methods: { id: string; name: string }[];
+}) {
   return (
     <form action={upsertTruck}>
       {truck && <input type="hidden" name="id" value={truck.id} />}
@@ -25,6 +32,15 @@ function TruckForm({ truck }: { truck?: {
           <label>Max trips/day</label>
           <input name="maxTripsPerDay" inputMode="numeric" defaultValue={truck?.maxTripsPerDay ?? 6} />
         </div>
+        <div>
+          <label>Performs</label>
+          <select name="deliveryMethodId" defaultValue={truck?.deliveryMethodId ?? ""}>
+            <option value="">— unassigned —</option>
+            {methods.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" name="active" defaultChecked={truck?.active ?? true} style={{ width: "auto" }} />
@@ -40,10 +56,18 @@ function TruckForm({ truck }: { truck?: {
 export default async function TrucksPage() {
   const ctx = await requireYardUser();
   if (!meetsPlan(ctx.yard, "PRO")) return <UpgradePrompt feature="Trucks & fleet" required="PRO" />;
-  const trucks = await db.truck.findMany({
-    where: { yardId: ctx.yard.id },
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-  });
+  const [trucks, methods] = await Promise.all([
+    db.truck.findMany({
+      where: { yardId: ctx.yard.id },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      include: { deliveryMethod: { select: { name: true } } },
+    }),
+    db.deliveryMethod.findMany({
+      where: { yardId: ctx.yard.id, active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+  ]);
   const daily = trucks.filter((t) => t.active).reduce((s, t) => s + t.capacityYards * t.maxTripsPerDay, 0);
 
   return (
@@ -59,17 +83,18 @@ export default async function TrucksPage() {
             <strong>{t.name}</strong>{" "}
             <span className="muted">
               {t.capacityYards} yds × {t.maxTripsPerDay} trips/day
+              {t.deliveryMethod ? ` · ${t.deliveryMethod.name}` : " · no method assigned"}
             </span>{" "}
             {!t.active && <span className="badge neutral">Out of service</span>}
           </summary>
           <div style={{ marginTop: 12 }}>
-            <TruckForm truck={t} />
+            <TruckForm truck={t} methods={methods} />
           </div>
         </details>
       ))}
       <div className="card">
         <h3>Add a truck</h3>
-        <TruckForm />
+        <TruckForm methods={methods} />
       </div>
     </div>
   );

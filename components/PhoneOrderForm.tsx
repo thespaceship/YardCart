@@ -5,8 +5,10 @@ import { createPhoneOrder, type PhoneOrderState } from "@/app/actions/orders";
 
 export default function PhoneOrderForm({
   products,
+  methods,
 }: {
   products: { id: string; name: string; unit: string; price: string; step: number }[];
+  methods: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(
     createPhoneOrder,
@@ -71,6 +73,19 @@ export default function PhoneOrderForm({
             <label>Requested date (optional)</label>
             <input name="requestedDate" type="date" />
           </div>
+          {methods.length > 0 && (
+            <div>
+              <label>Delivery method</label>
+              <select name="deliveryMethodId" defaultValue="">
+                <option value="">Automatic — pick what the load needs</option>
+                {methods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <label>Placement instructions</label>
         <input name="placementNotes" placeholder="Dump on driveway…" />

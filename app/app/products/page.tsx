@@ -1,7 +1,14 @@
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
-import { upsertProduct, deleteProduct } from "@/app/actions/catalog";
+import { humanizeSlug } from "@/lib/categories";
+import { ensureDefaultCategories } from "@/lib/categories.server";
+import {
+  upsertProduct,
+  deleteProduct,
+  upsertCategory,
+  deleteCategory,
+} from "@/app/actions/catalog";
 
 export const metadata = { title: "Products" };
 
@@ -13,12 +20,43 @@ const UNITS = [
   ["face_cord", "Face cord"],
   ["ton", "Ton"],
 ];
-const CATEGORIES = ["mulch", "soil", "compost", "stone", "firewood", "other"];
 
-function ProductForm({ product }: { product?: {
-  id: string; name: string; category: string; description: string; unit: string;
-  priceCents: number; minQty: number; maxQty: number; qtyStep: number; active: boolean; sortOrder: number;
-} }) {
+type CategoryRow = { id: string; slug: string; label: string; sortOrder: number; active: boolean };
+type MethodRow = { id: string; name: string };
+type AddOnRow = { id: string; name: string; feeCents: number };
+
+// Starting points so the weight field isn't a blank required-guess. Rough lb per cubic yard.
+const WEIGHT_HINTS: Record<string, number> = {
+  stone: 2800,
+  soil: 2200,
+  compost: 1000,
+  mulch: 800,
+};
+
+function ProductForm({
+  product,
+  categories,
+  methods,
+  addOns,
+}: {
+  product?: {
+    id: string; name: string; category: string; description: string; unit: string;
+    priceCents: number; minQty: number; maxQty: number; qtyStep: number; active: boolean; sortOrder: number;
+    yardsPerUnit: number | null; weightLbsPerUnit: number; palletsPerUnit: number;
+    methods: { methodId: string }[]; addOns: { addOnId: string }[];
+  };
+  categories: CategoryRow[];
+  methods: MethodRow[];
+  addOns: AddOnRow[];
+}) {
+  const selectedMethods = new Set((product?.methods ?? []).map((m) => m.methodId));
+  const selectedAddOns = new Set((product?.addOns ?? []).map((a) => a.addOnId));
+  // No rows means "any method" — reflect that by pre-checking everything.
+  const allMethods = selectedMethods.size === 0;
+  // A product filed under a hidden or deleted category keeps that option visible on its own form,
+  // so editing an unrelated field can't silently refile it somewhere else.
+  const options = categories.filter((c) => c.active || c.slug === product?.category);
+  const orphaned = product && !categories.some((c) => c.slug === product.category);
   return (
     <form action={upsertProduct}>
       {product && <input type="hidden" name="id" value={product.id} />}
@@ -29,9 +67,15 @@ function ProductForm({ product }: { product?: {
         </div>
         <div>
           <label>Category</label>
-          <select name="category" defaultValue={product?.category ?? "mulch"}>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+          <select name="category" defaultValue={product?.category ?? options[0]?.slug ?? "other"}>
+            {orphaned && (
+              <option value={product!.category}>{humanizeSlug(product!.category)}</option>
+            )}
+            {options.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+                {!c.active ? " (hidden)" : ""}
+              </option>
             ))}
           </select>
         </div>
@@ -68,6 +112,87 @@ function ProductForm({ product }: { product?: {
           <input name="sortOrder" inputMode="numeric" defaultValue={product?.sortOrder ?? 0} />
         </div>
       </div>
+
+      <fieldset style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12, margin: "16px 0" }}>
+        <legend className="muted" style={{ padding: "0 6px" }}>
+          Delivery load
+        </legend>
+        <div className="field-row">
+          <div>
+            <label>Weight per unit (lbs)</label>
+            <input
+              name="weightLbsPerUnit"
+              inputMode="decimal"
+              defaultValue={product?.weightLbsPerUnit ?? ""}
+              placeholder={String(WEIGHT_HINTS[product?.category ?? ""] ?? 0)}
+            />
+          </div>
+          <div>
+            <label>Pallets per unit</label>
+            <input
+              name="palletsPerUnit"
+              inputMode="decimal"
+              defaultValue={product?.palletsPerUnit ?? ""}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label>Cubic yards per unit</label>
+            <input
+              name="yardsPerUnit"
+              inputMode="decimal"
+              defaultValue={product?.yardsPerUnit ?? ""}
+              placeholder="auto"
+            />
+          </div>
+        </div>
+        <p className="muted" style={{ margin: "4px 0 0", maxWidth: 640 }}>
+          Used to work out which truck an order needs and how many trips. Leave weight at{" "}
+          <strong>0</strong> to exempt this product from weight limits; leave cubic yards blank to
+          derive it from the unit.
+        </p>
+
+        {methods.length > 0 && (
+          <>
+            <label style={{ marginTop: 12 }}>Can be delivered by</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              {methods.map((m) => (
+                <label key={m.id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    name="methodIds"
+                    value={m.id}
+                    defaultChecked={allMethods || selectedMethods.has(m.id)}
+                    style={{ width: "auto" }}
+                  />
+                  {m.name}
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+
+        {addOns.length > 0 && (
+          <>
+            <label style={{ marginTop: 12 }}>Requires equipment</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              {addOns.map((a) => (
+                <label key={a.id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    name="addOnIds"
+                    value={a.id}
+                    defaultChecked={selectedAddOns.has(a.id)}
+                    style={{ width: "auto" }}
+                  />
+                  {a.name} <span className="muted">({formatCents(a.feeCents)})</span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+      </fieldset>
+
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" name="active" defaultChecked={product?.active ?? true} style={{ width: "auto" }} />
         Visible on storefront
@@ -79,16 +204,131 @@ function ProductForm({ product }: { product?: {
   );
 }
 
+function CategoryRowForm({ category, count }: { category: CategoryRow; count: number }) {
+  return (
+    <form action={upsertCategory} className="field-row" style={{ alignItems: "flex-end" }}>
+      <input type="hidden" name="id" value={category.id} />
+      <div style={{ flex: 2 }}>
+        <input name="label" required defaultValue={category.label} aria-label={`Name for ${category.label}`} />
+      </div>
+      <div style={{ width: 90 }}>
+        <input
+          name="sortOrder"
+          inputMode="numeric"
+          defaultValue={category.sortOrder}
+          aria-label={`Sort order for ${category.label}`}
+        />
+      </div>
+      <div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
+          <input type="checkbox" name="active" defaultChecked={category.active} style={{ width: "auto" }} />
+          Shown
+        </label>
+      </div>
+      <div>
+        <span className="muted" style={{ whiteSpace: "nowrap" }}>
+          {count} product{count === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button className="btn secondary small">Save</button>
+        {category.active && (
+          // formAction lets one row post to either action — forms can't nest, and a row-level
+          // hide reads far better than a separate stack of danger buttons.
+          <button className="btn danger small" formAction={deleteCategory}>
+            Hide
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
 export default async function ProductsPage() {
   const ctx = await requireYardUser();
-  const products = await db.product.findMany({
-    where: { yardId: ctx.yard.id },
-    orderBy: [{ active: "desc" }, { sortOrder: "asc" }],
-  });
+  // Self-heal before reading: a yard whose categories never got created (see the migration-ahead-
+  // of-deploy case in ensureDefaultCategories) would otherwise land here with an empty picker and
+  // a product form that rejects every save.
+  await ensureDefaultCategories(ctx.yard.id);
+
+  const [products, categories, methods, addOns] = await Promise.all([
+    db.product.findMany({
+      where: { yardId: ctx.yard.id },
+      orderBy: [{ active: "desc" }, { sortOrder: "asc" }],
+      include: { methods: true, addOns: true },
+    }),
+    db.category.findMany({
+      where: { yardId: ctx.yard.id },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+    db.deliveryMethod.findMany({
+      where: { yardId: ctx.yard.id, active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    db.deliveryAddOn.findMany({
+      where: { yardId: ctx.yard.id, active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, feeCents: true },
+    }),
+  ]);
+
+  const countBySlug = new Map<string, number>();
+  for (const p of products) {
+    if (!p.active) continue;
+    countBySlug.set(p.category, (countBySlug.get(p.category) ?? 0) + 1);
+  }
+  const hiddenWithProducts = categories.filter(
+    (c) => !c.active && (countBySlug.get(c.slug) ?? 0) > 0
+  );
 
   return (
     <div className="stack">
       <h1>Products</h1>
+
+      <details className="card">
+        <summary style={{ cursor: "pointer" }}>
+          <strong>Categories</strong>{" "}
+          <span className="muted">
+            {categories.filter((c) => c.active).length} shown on your storefront
+          </span>
+        </summary>
+        <div style={{ marginTop: 12 }}>
+          <p className="muted" style={{ maxWidth: 640 }}>
+            Categories group your products into sections on your storefront, lowest sort order
+            first. Add whatever fits your yard — sand, construction material, boulders. Renaming a
+            category is safe; products stay put.
+          </p>
+          {hiddenWithProducts.length > 0 && (
+            <div className="alert info">
+              {hiddenWithProducts.map((c) => c.label).join(", ")}{" "}
+              {hiddenWithProducts.length === 1 ? "is" : "are"} hidden but still{" "}
+              {hiddenWithProducts.length === 1 ? "has" : "have"} active products. Those products
+              still show on your storefront under their own heading — hide the products themselves
+              if you want them off the page.
+            </div>
+          )}
+          {categories.map((c) => (
+            <CategoryRowForm key={c.id} category={c} count={countBySlug.get(c.slug) ?? 0} />
+          ))}
+          <hr style={{ margin: "16px 0", border: 0, borderTop: "1px solid var(--line)" }} />
+          <form action={upsertCategory} className="field-row" style={{ alignItems: "flex-end" }}>
+            <div style={{ flex: 2 }}>
+              <label>New category</label>
+              <input name="label" required placeholder="Construction material" />
+            </div>
+            <div style={{ width: 90 }}>
+              <label>Sort</label>
+              <input name="sortOrder" inputMode="numeric" defaultValue={(categories.length + 1) * 10} />
+            </div>
+            <div>
+              <input type="hidden" name="active" value="on" />
+              <button className="btn">Add category</button>
+            </div>
+          </form>
+        </div>
+      </details>
+
       {products.map((p) => (
         <details className="card" key={p.id}>
           <summary style={{ cursor: "pointer", display: "flex", gap: 12, alignItems: "center" }}>
@@ -99,7 +339,7 @@ export default async function ProductsPage() {
             {!p.active && <span className="badge neutral">Hidden</span>}
           </summary>
           <div style={{ marginTop: 12 }}>
-            <ProductForm product={p} />
+            <ProductForm product={p} categories={categories} methods={methods} addOns={addOns} />
             {p.active && (
               <form action={deleteProduct} style={{ marginTop: 8 }}>
                 <input type="hidden" name="id" value={p.id} />
@@ -111,7 +351,7 @@ export default async function ProductsPage() {
       ))}
       <div className="card">
         <h3>Add a product</h3>
-        <ProductForm />
+        <ProductForm categories={categories} methods={methods} addOns={addOns} />
       </div>
     </div>
   );

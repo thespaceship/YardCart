@@ -6,6 +6,7 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
+import { categorySlug } from "@/lib/categories";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertPlan } from "@/lib/entitlements";
@@ -13,6 +14,58 @@ import { assertPlan } from "@/lib/entitlements";
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
   return ctx;
+}
+
+// ---------- Categories ----------
+
+/** First free slug for `label` within the yard: "sand", then "sand-2", "sand-3", … */
+async function uniqueCategorySlug(yardId: string, label: string): Promise<string> {
+  const base = categorySlug(label) || "category";
+  for (let i = 0; ; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    const taken = await db.category.findUnique({
+      where: { yardId_slug: { yardId, slug: candidate } },
+    });
+    if (!taken) return candidate;
+  }
+}
+
+export async function upsertCategory(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id") ?? "");
+  const label = String(formData.get("label") ?? "").trim().slice(0, 60);
+  if (!label) throw new Error("Category name is required");
+  const sortOrder = parseInt(String(formData.get("sortOrder") ?? "0")) || 0;
+  const active = formData.get("active") === "on";
+
+  if (id) {
+    const existing = await db.category.findUnique({ where: { id } });
+    if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+    // slug is deliberately not editable — Product.category stores it
+    await db.category.update({ where: { id }, data: { label, sortOrder, active } });
+  } else {
+    await db.category.create({
+      data: {
+        yardId: ctx.yard.id,
+        slug: await uniqueCategorySlug(ctx.yard.id, label),
+        label,
+        sortOrder,
+        active,
+      },
+    });
+  }
+  revalidatePath("/app/products");
+}
+
+export async function deleteCategory(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const existing = await db.category.findUnique({ where: { id } });
+  if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+  // Soft delete, matching products/zones. Products keep their slug and still get a storefront
+  // section (see groupByCategory) rather than vanishing without the owner noticing.
+  await db.category.update({ where: { id }, data: { active: false } });
+  revalidatePath("/app/products");
 }
 
 // ---------- Products ----------
@@ -31,16 +84,57 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     qtyStep: parseFloat(String(formData.get("qtyStep") ?? "0.5")) || 0.5,
     active: formData.get("active") === "on",
     sortOrder: parseInt(String(formData.get("sortOrder") ?? "0")) || 0,
+    // Delivery load. Blank yardsPerUnit means "derive from the unit" — see lib/load.ts.
+    yardsPerUnit:
+      String(formData.get("yardsPerUnit") ?? "").trim() === ""
+        ? null
+        : floatField(formData, "yardsPerUnit"),
+    weightLbsPerUnit: floatField(formData, "weightLbsPerUnit"),
+    palletsPerUnit: floatField(formData, "palletsPerUnit"),
   };
   if (!data.name || data.priceCents <= 0) throw new Error("Name and price are required");
+  // The picker only offers this yard's categories; re-check so a hand-crafted POST can't file a
+  // product under a slug that has no section.
+  const category = await db.category.findUnique({
+    where: { yardId_slug: { yardId: ctx.yard.id, slug: data.category } },
+  });
+  if (!category) throw new Error("Unknown category");
 
+  // Restrict the checkbox sets to this yard's own rows before writing any join records.
+  const [ownMethods, ownAddOns] = await Promise.all([
+    db.deliveryMethod.findMany({ where: { yardId: ctx.yard.id }, select: { id: true } }),
+    db.deliveryAddOn.findMany({ where: { yardId: ctx.yard.id }, select: { id: true } }),
+  ]);
+  const ownMethodIds = new Set(ownMethods.map((m) => m.id));
+  const ownAddOnIds = new Set(ownAddOns.map((a) => a.id));
+  const methodIds = formData
+    .getAll("methodIds")
+    .map(String)
+    .filter((mid) => ownMethodIds.has(mid));
+  const addOnIds = formData
+    .getAll("addOnIds")
+    .map(String)
+    .filter((aid) => ownAddOnIds.has(aid));
+  // "All methods" is the empty set — selecting every method means the same thing, so store it
+  // as empty and the product keeps working when the yard adds another method later.
+  const methodLinks = methodIds.length === ownMethods.length ? [] : methodIds;
+
+  let productId = id;
   if (id) {
     const existing = await db.product.findUnique({ where: { id } });
     if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
     await db.product.update({ where: { id }, data });
   } else {
-    await db.product.create({ data: { ...data, yardId: ctx.yard.id } });
+    const created = await db.product.create({ data: { ...data, yardId: ctx.yard.id } });
+    productId = created.id;
   }
+
+  await db.$transaction([
+    db.productMethod.deleteMany({ where: { productId } }),
+    db.productAddOn.deleteMany({ where: { productId } }),
+    ...methodLinks.map((methodId) => db.productMethod.create({ data: { productId, methodId } })),
+    ...addOnIds.map((addOnId) => db.productAddOn.create({ data: { productId, addOnId } })),
+  ]);
   revalidatePath("/app/products");
 }
 
@@ -94,10 +188,16 @@ export async function upsertTruck(formData: FormData): Promise<void> {
   const ctx = await ctxOrLogin();
   assertPlan(ctx.yard, "PRO"); // fleet/truck management is a Pro feature
   const id = String(formData.get("id") ?? "");
+  const methodId = String(formData.get("deliveryMethodId") ?? "");
+  if (methodId) {
+    const method = await db.deliveryMethod.findUnique({ where: { id: methodId } });
+    if (!method || method.yardId !== ctx.yard.id) throw new Error("Unknown delivery method");
+  }
   const data = {
     name: String(formData.get("name") ?? "").trim().slice(0, 120),
     capacityYards: Math.max(1, parseFloat(String(formData.get("capacityYards") ?? "10")) || 10),
     maxTripsPerDay: Math.max(1, parseInt(String(formData.get("maxTripsPerDay") ?? "6")) || 6),
+    deliveryMethodId: methodId || null,
     active: formData.get("active") === "on",
   };
   if (!data.name) throw new Error("Truck name required");
@@ -110,6 +210,126 @@ export async function upsertTruck(formData: FormData): Promise<void> {
     await db.truck.create({ data: { ...data, yardId: ctx.yard.id } });
   }
   revalidatePath("/app/trucks");
+}
+
+// ---------- Delivery methods ----------
+//
+// Deliberately not plan-gated: a Starter yard still has to be able to charge for a flatbed.
+// Truck assignment and dispatch capacity stay Pro (see upsertTruck).
+
+function floatField(formData: FormData, name: string, fallback = 0): number {
+  const raw = String(formData.get(name) ?? "").trim();
+  if (raw === "") return fallback;
+  const n = parseFloat(raw.replace(/,/g, ""));
+  return isFinite(n) && n >= 0 ? n : fallback;
+}
+
+export async function upsertDeliveryMethod(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id") ?? "");
+  const data = {
+    name: String(formData.get("name") ?? "").trim().slice(0, 120),
+    description: String(formData.get("description") ?? "").trim().slice(0, 300),
+    maxYards: floatField(formData, "maxYards"),
+    maxWeightLbs: floatField(formData, "maxWeightLbs"),
+    maxPallets: floatField(formData, "maxPallets"),
+    allowMultipleTrips: formData.get("allowMultipleTrips") === "on",
+    quoteOnly: formData.get("quoteOnly") === "on",
+    sortOrder: parseInt(String(formData.get("sortOrder") ?? "0")) || 0,
+    active: formData.get("active") === "on",
+  };
+  if (!data.name) throw new Error("Delivery method name is required");
+
+  if (id) {
+    const existing = await db.deliveryMethod.findUnique({ where: { id } });
+    if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+    await db.deliveryMethod.update({ where: { id }, data });
+  } else {
+    await db.deliveryMethod.create({ data: { ...data, yardId: ctx.yard.id } });
+  }
+  revalidatePath("/app/delivery");
+}
+
+export async function deleteDeliveryMethod(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const existing = await db.deliveryMethod.findUnique({ where: { id } });
+  if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+  // Soft delete: orders reference the method, and their snapshots should keep resolving.
+  await db.deliveryMethod.update({ where: { id }, data: { active: false } });
+  revalidatePath("/app/delivery");
+}
+
+export async function upsertDeliveryAddOn(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id") ?? "");
+  const data = {
+    name: String(formData.get("name") ?? "").trim().slice(0, 120),
+    feeCents: dollarsToCents(String(formData.get("fee") ?? "0")),
+    perTrip: formData.get("perTrip") === "on",
+    sortOrder: parseInt(String(formData.get("sortOrder") ?? "0")) || 0,
+    active: formData.get("active") === "on",
+  };
+  if (!data.name) throw new Error("Add-on name is required");
+
+  if (id) {
+    const existing = await db.deliveryAddOn.findUnique({ where: { id } });
+    if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+    await db.deliveryAddOn.update({ where: { id }, data });
+  } else {
+    await db.deliveryAddOn.create({ data: { ...data, yardId: ctx.yard.id } });
+  }
+  revalidatePath("/app/delivery");
+}
+
+export async function deleteDeliveryAddOn(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const existing = await db.deliveryAddOn.findUnique({ where: { id } });
+  if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+  await db.deliveryAddOn.update({ where: { id }, data: { active: false } });
+  revalidatePath("/app/delivery");
+}
+
+/**
+ * Save the whole zone × method fee grid in one post. Fields arrive as `rate_<zoneId>_<methodId>`;
+ * a blank cell deletes its row so that pair falls back to the zone's own delivery fee.
+ */
+export async function saveDeliveryRates(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const [zones, methods] = await Promise.all([
+    db.zone.findMany({ where: { yardId: ctx.yard.id }, select: { id: true } }),
+    db.deliveryMethod.findMany({ where: { yardId: ctx.yard.id }, select: { id: true } }),
+  ]);
+  const zoneIds = new Set(zones.map((z) => z.id));
+  const methodIds = new Set(methods.map((m) => m.id));
+
+  const setRows: { zoneId: string; methodId: string; feeCents: number }[] = [];
+  const clearRows: { zoneId: string; methodId: string }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("rate_")) continue;
+    const [, zoneId, methodId] = key.split("_");
+    // ignore ids that aren't this yard's — the grid is rendered from its own rows
+    if (!zoneIds.has(zoneId) || !methodIds.has(methodId)) continue;
+    const raw = String(value).trim();
+    if (raw === "") clearRows.push({ zoneId, methodId });
+    else setRows.push({ zoneId, methodId, feeCents: dollarsToCents(raw) });
+  }
+
+  await db.$transaction([
+    ...clearRows.map((r) =>
+      db.deliveryRate.deleteMany({ where: { zoneId: r.zoneId, methodId: r.methodId } })
+    ),
+    ...setRows.map((r) =>
+      db.deliveryRate.upsert({
+        where: { zoneId_methodId: { zoneId: r.zoneId, methodId: r.methodId } },
+        create: r,
+        update: { feeCents: r.feeCents },
+      })
+    ),
+  ]);
+  revalidatePath("/app/delivery");
+  redirect("/app/delivery?saved=1");
 }
 
 // ---------- Settings ----------

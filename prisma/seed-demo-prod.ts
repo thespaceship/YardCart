@@ -16,6 +16,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { DEMO_YARD_SLUG } from "../lib/demo";
+import { defaultCategoryRows } from "../lib/categories";
 
 const db = new PrismaClient();
 
@@ -42,6 +43,10 @@ async function main() {
       planStatus: "ACTIVE",
       onboardedAt: new Date(),
     },
+  });
+
+  await db.category.createMany({
+    data: defaultCategoryRows().map((c) => ({ ...c, yardId: yard.id })),
   });
 
   const productData = [

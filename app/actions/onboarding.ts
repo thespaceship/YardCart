@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
 import { PRODUCT_TEMPLATES } from "@/lib/templates";
+import { defaultCategoryRows } from "@/lib/categories";
 import { normalizeTrialPlan } from "@/lib/billing";
 import { trackEvent } from "@/lib/observability";
 
@@ -87,6 +88,9 @@ export async function completeOnboarding(
       onboardedAt: new Date(),
       products: {
         create: selected.map((p, i) => ({ ...p, sortOrder: i })),
+      },
+      categories: {
+        create: defaultCategoryRows(),
       },
       zones: {
         create: [{ name: zoneName, zipCodes: JSON.stringify(zips), deliveryFeeCents, minOrderCents }],

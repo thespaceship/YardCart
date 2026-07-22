@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
+import { meetsPlan } from "@/lib/entitlements";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import {
@@ -157,7 +158,7 @@ export default async function DeliveryPage(props: {
   const ctx = await requireYardUser();
   const { saved } = await props.searchParams;
 
-  const [methods, addOns, zones, rates] = await Promise.all([
+  const [methods, addOns, zones, rates, trucks] = await Promise.all([
     db.deliveryMethod.findMany({
       where: { yardId: ctx.yard.id },
       orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
@@ -171,9 +172,20 @@ export default async function DeliveryPage(props: {
       orderBy: [{ deliveryFeeCents: "asc" }, { name: "asc" }],
     }),
     db.deliveryRate.findMany({ where: { zone: { yardId: ctx.yard.id } } }),
+    db.truck.findMany({
+      where: { yardId: ctx.yard.id, active: true },
+      select: { deliveryMethodId: true },
+    }),
   ]);
 
   const activeMethods = methods.filter((m) => m.active);
+  // Capacity is only enforced where the yard has declared it (lib/capacity.ts), so a method with
+  // no trucks takes unlimited bookings. That's the safe default, but it has to be visible or an
+  // owner will trust a limit that isn't running. Only surfaced to plans that can assign trucks.
+  const methodsWithTrucks = new Set(trucks.map((t) => t.deliveryMethodId).filter(Boolean));
+  const uncapped = meetsPlan(ctx.yard, "PRO")
+    ? activeMethods.filter((m) => !methodsWithTrucks.has(m.id))
+    : [];
   const rateOf = (zoneId: string, methodId: string) =>
     rates.find((r) => r.zoneId === zoneId && r.methodId === methodId);
 
@@ -188,6 +200,15 @@ export default async function DeliveryPage(props: {
       </p>
 
       <h2 style={{ marginBottom: 0 }}>Methods</h2>
+      {uncapped.length > 0 && (
+        <div className="alert info">
+          No trucks are assigned to {uncapped.map((m) => m.name).join(", ")}, so{" "}
+          {uncapped.length === 1 ? "it takes" : "they take"} unlimited bookings per day — the
+          per-trip limits above still apply to pricing, but nothing caps how many of those
+          deliveries land on one date. <Link href="/app/trucks">Assign trucks</Link> to enforce
+          daily capacity.
+        </div>
+      )}
       {methods.map((m) => (
         <details className="card" key={m.id}>
           <summary style={{ cursor: "pointer" }}>

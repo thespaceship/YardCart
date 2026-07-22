@@ -52,3 +52,45 @@ Postgres. Recommended: **Vercel + Neon** for zero-ops.
 - [ ] Rate limits verified in prod (single instance) — move to Upstash if scaling out
 - [x] Privacy/Terms contact email set to support@getyardcart.com and security page to
       security@getyardcart.com — **create both aliases (forwarding is fine) and monitor them**
+
+## Running migrations against Neon
+
+`DATABASE_URL` points at Neon's **pooled** endpoint (`...-pooler...`), which is right for the
+app at runtime but wrong for schema migrations.
+
+- `prisma migrate deploy` — what the build runs (`npm run build`). Applies the committed
+  migration files in order. Needs no shadow database and does no drift detection, so it is
+  safe over the pooler. **Production is unaffected by the caveat below.**
+- `prisma migrate dev` — needs a *shadow database* to diff against, and tries to create one on
+  the same server. Over a pooled Neon connection with no shadow/direct URL configured this
+  misbehaves: on 2026-07-22 it left the Phase 2a delivery tables in the dev branch with no
+  migration file recording them, which would have shipped a schema production could never
+  reproduce. Caught by the next `migrate dev` reporting drift.
+
+To make `migrate dev` behave, add Neon's **direct** (non-pooled) endpoint — the same host
+without the `-pooler` suffix — as `DIRECT_URL`, and declare it in the datasource:
+
+```prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // pooled — app runtime
+  directUrl = env("DIRECT_URL")    // direct — migrations & introspection
+}
+```
+
+Until that is set, prefer generating migrations without touching the database:
+
+```bash
+git show HEAD:prisma/schema.prisma > /tmp/old.prisma
+npx prisma migrate diff --from-schema-datamodel /tmp/old.prisma \
+  --to-schema-datamodel prisma/schema.prisma --script \
+  > prisma/migrations/<timestamp>_<name>/migration.sql
+npx prisma migrate deploy
+```
+
+After any schema change, confirm the migrations and the schema agree — this must print an
+empty migration:
+
+```bash
+npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
+```

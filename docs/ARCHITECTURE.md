@@ -10,22 +10,62 @@ Rationale: one deployable unit, minimal dependencies, everything swappable at th
 
 ## Data model (prisma/schema.prisma)
 - **Yard** — tenant. All queries scope by `yardId`; users belong to exactly one yard (MVP).
+- **Category** — per-yard storefront section. `slug` is immutable (it is what
+  `Product.category` stores); `label` and `sortOrder` are freely editable. Every yard is
+  seeded the six built-ins and can add its own (sand, construction material, …).
 - **Product** — priced per unit (`cubic_yard`, `half_yard`, `bag`, `cord`, `face_cord`, `ton`).
   Prices stored in integer cents. Soft-delete via `active` to preserve order history.
+  Carries delivery load attributes (`yardsPerUnit`, `weightLbsPerUnit`, `palletsPerUnit`)
+  plus optional method allow-lists and required equipment.
 - **Zone** — named delivery area = list of ZIP codes + fee + minimum order. Overlap resolves
-  to the cheapest fee (`lib/zones.ts`).
-- **Truck** — `capacityYards × maxTripsPerDay` contributes to daily capacity.
+  to the cheapest fee (`lib/zones.ts`). Typically named for a distance band ("0–3 miles");
+  there is no geocoding, so ZIP membership is the proxy for distance.
+- **DeliveryMethod** — a delivery *service* ("Medium dump truck"), not a physical truck.
+  Per-trip limits in yards / lbs / pallets, where 0 means "don't enforce".
+- **DeliveryRate** — one cell of the sparse zone × method fee grid; a missing cell falls back
+  to `Zone.deliveryFeeCents`.
+- **DeliveryAddOn** — equipment billed on top (forklift), pulled in automatically by products
+  that require it, per trip or once per order.
+- **Truck** — supplies `maxTripsPerDay` to the delivery method it performs.
 - **Order / OrderItem** — item rows snapshot name/unit/price at order time. Per-yard
   sequential `number` (customer-facing) assigned in a transaction; global `cuid` id.
   Status: NEW → SCHEDULED → OUT_FOR_DELIVERY → DELIVERED (or CANCELED).
 - **EmailLog** — test-mode outbound mailbox + audit trail. **EventLog/ErrorLog** —
   first-party analytics/error monitoring. **Invoice** — billing records (MOCK or Stripe).
 
+## Delivery model (lib/load.ts, lib/delivery.ts)
+A yard states truck limits in whichever unit suits each material — "10 tons of gravel or
+18 yards of mulch" is one truck described twice. So limits are a **utilization** model, not
+independent caps: each dimension's load ÷ limit is computed and the hardest-binding one is
+`ceil()`ed into a trip count. Gravel binds on weight, mulch on volume, pallets on count.
+A limit of 0 is skipped, which is the owner's override when the physics disagrees with
+their stated policy.
+
+The customer never picks a truck. `selectDelivery()` reads the cart and resolves to one of:
+an auto-assigned method (cheapest eligible, overridable to another *eligible* one), a
+quote-only escalation, a cart needing more than one delivery, or nothing that can haul it.
+Fee = `rate(zone, method) × trips + add-ons`. `placeOrder` always recomputes this, so a
+stale or hand-edited client choice can never set the price.
+
+Fees live in a grid rather than a base-plus-surcharge formula because real published tables
+are not a constant offset between columns.
+
+With no methods configured, a yard prices exactly as it did before the feature existed via
+an implicit unlimited method — and product method restrictions are dropped in that case, so
+retiring the last method cannot close a storefront.
+
 ## Capacity model (lib/capacity.ts)
-Day-level: daily capacity = Σ active trucks (capacity × trips). An order consumes its
-volume-equivalent yards (min 1). The storefront date picker only offers dates where
-remaining capacity fits the cart, after lead-time/cutoff/booking-window rules. This is
-deliberately coarse (no routing/geo yet) — good enough to prevent overbooking, simple
+Day-level, measured in **truck trips per method**. Trucks supply trips to the method they
+perform; an order consumes its `tripCount` from that method's pool only, so a full flatbed
+day leaves the dump trucks open. Trips are the only unit that works across materials — the
+previous yards-based pool charged tons, cords, and pallets zero and made the yard look
+infinitely available for anything not sold by the cubic yard.
+
+A method with no trucks assigned is **unconstrained, not full**: assigning trucks is Pro-only,
+so treating undeclared capacity as zero would let a Starter yard configure methods and
+silently close its own storefront. Trucks with no method form a legacy pool.
+
+Still deliberately coarse (no routing/geo) — good enough to prevent overbooking, simple
 enough for owners to trust and predict.
 
 ## Auth & security

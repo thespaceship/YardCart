@@ -28,6 +28,17 @@ export const metadata: Metadata = {
     "dispatch board for delivery trucks",
   ],
   alternates: { canonical: "/" },
+  // Declared explicitly rather than inferred from app/favicon.ico. Next.js reads only the ICO's
+  // first directory entry and emits sizes="16x16", though the file also carries 32x32 and 48x48.
+  // Safari takes that hint literally and on a Retina display asks for 32px, finds nothing offered
+  // at that size, and falls back to its generic placeholder.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" },
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   openGraph: {
     type: "website",
     siteName: SITE_NAME,

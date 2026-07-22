@@ -6,6 +6,7 @@ import { yardActive } from "@/lib/billing";
 import { isDemoSlug, DEMO_SAMPLE_ZIP } from "@/lib/demo";
 import { trackEvent } from "@/lib/observability";
 import { absoluteUrl } from "@/lib/seo";
+import { toView } from "@/lib/categories";
 import Storefront from "@/components/Storefront";
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -37,6 +38,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
     where: { slug },
     include: {
       products: { where: { active: true }, orderBy: { sortOrder: "asc" } },
+      categories: { orderBy: [{ sortOrder: "asc" }, { label: "asc" }] },
     },
   });
   if (!yard) notFound();
@@ -54,6 +56,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
     maxQty: p.maxQty,
     qtyStep: p.qtyStep,
   }));
+  const categories = yard.categories.map(toView);
 
   // LocalBusiness structured data for real, active storefronts — makes the yard
   // eligible for local/AI results and gives its products as an offer catalog.
@@ -134,7 +137,14 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
             order.
           </div>
         ) : (
-          <Storefront slug={yard.slug} yardName={yard.name} yardPhone={yard.phone} products={products} isDemo={demo} />
+          <Storefront
+            slug={yard.slug}
+            yardName={yard.name}
+            yardPhone={yard.phone}
+            products={products}
+            categories={categories}
+            isDemo={demo}
+          />
         )}
         <footer className="mfooter" style={{ marginTop: 48 }}>
           Online ordering powered by <Link href="/">YardCart</Link>

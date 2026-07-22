@@ -65,13 +65,33 @@ model Yard {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  users    User[]
-  members  YardMember[]
-  products Product[]
-  zones    Zone[]
-  trucks   Truck[]
-  orders   Order[]
-  invoices Invoice[]
+  users      User[]
+  members    YardMember[]
+  products   Product[]
+  categories Category[]
+  zones      Zone[]
+  trucks     Truck[]
+  orders     Order[]
+  invoices   Invoice[]
+}
+
+// Storefront product categories, owned by the yard. `slug` is what Product.category stores, so it
+// is immutable once created (renaming would orphan products); `label` is the display name and is
+// freely editable. Every yard starts with the six built-ins and can add its own (sand, construction
+// material, …). sortOrder drives the section order customers see on the storefront.
+model Category {
+  id        String   @id @default(cuid())
+  yardId    String
+  yard      Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
+  slug      String
+  label     String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([yardId, slug])
+  @@index([yardId])
 }
 
 model Product {
@@ -79,7 +99,7 @@ model Product {
   yardId      String
   yard        Yard        @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name        String
-  category    String      @default("mulch") // mulch | soil | compost | stone | firewood | other
+  category    String      @default("mulch") // Category.slug for this yard (see model Category)
   description String      @default("")
   unit        String      @default("cubic_yard") // cubic_yard | half_yard | bag | cord | face_cord | ton
   priceCents  Int

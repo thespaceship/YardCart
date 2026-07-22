@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { groupByCategory, type CategoryView } from "@/lib/categories";
 
 type PublicProduct = {
   id: string;
@@ -47,26 +48,19 @@ function prettyDate(iso: string) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  mulch: "Mulch",
-  soil: "Topsoil & Soil",
-  compost: "Compost",
-  stone: "Stone & Gravel",
-  firewood: "Firewood",
-  other: "More",
-};
-
 export default function Storefront({
   slug,
   yardName,
   yardPhone,
   products,
+  categories,
   isDemo = false,
 }: {
   slug: string;
   yardName: string;
   yardPhone: string;
   products: PublicProduct[];
+  categories: CategoryView[];
   isDemo?: boolean;
 }) {
   const router = useRouter();
@@ -156,14 +150,10 @@ export default function Storefront({
     return Math.max(0.5, Math.ceil(((sqft * (depth / 12)) / 27) * 2) / 2);
   }, [calcSqft, calcDepth]);
 
-  const categories = useMemo(() => {
-    const cats = new Map<string, PublicProduct[]>();
-    for (const p of products) {
-      if (!cats.has(p.category)) cats.set(p.category, []);
-      cats.get(p.category)!.push(p);
-    }
-    return [...cats.entries()];
-  }, [products]);
+  const sections = useMemo(
+    () => groupByCategory(products, categories),
+    [products, categories]
+  );
 
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -236,11 +226,11 @@ export default function Storefront({
       </div>
 
       {/* Catalog */}
-      {categories.map(([cat, prods]) => (
-        <div key={cat}>
-          <h2 style={{ margin: "8px 0 12px" }}>{CATEGORY_LABELS[cat] ?? cat}</h2>
+      {sections.map((section) => (
+        <div key={section.slug}>
+          <h2 style={{ margin: "8px 0 12px" }}>{section.label}</h2>
           <div className="stack">
-            {prods.map((p: PublicProduct) => {
+            {section.products.map((p: PublicProduct) => {
               const qty = cart[p.id] ?? 0;
               return (
                 <div className="card spread" key={p.id}>

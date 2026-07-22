@@ -6,6 +6,7 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
 import { parseZipList } from "@/lib/zones";
+import { categorySlug } from "@/lib/categories";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertPlan } from "@/lib/entitlements";
@@ -13,6 +14,58 @@ import { assertPlan } from "@/lib/entitlements";
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
   return ctx;
+}
+
+// ---------- Categories ----------
+
+/** First free slug for `label` within the yard: "sand", then "sand-2", "sand-3", … */
+async function uniqueCategorySlug(yardId: string, label: string): Promise<string> {
+  const base = categorySlug(label) || "category";
+  for (let i = 0; ; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    const taken = await db.category.findUnique({
+      where: { yardId_slug: { yardId, slug: candidate } },
+    });
+    if (!taken) return candidate;
+  }
+}
+
+export async function upsertCategory(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id") ?? "");
+  const label = String(formData.get("label") ?? "").trim().slice(0, 60);
+  if (!label) throw new Error("Category name is required");
+  const sortOrder = parseInt(String(formData.get("sortOrder") ?? "0")) || 0;
+  const active = formData.get("active") === "on";
+
+  if (id) {
+    const existing = await db.category.findUnique({ where: { id } });
+    if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+    // slug is deliberately not editable — Product.category stores it
+    await db.category.update({ where: { id }, data: { label, sortOrder, active } });
+  } else {
+    await db.category.create({
+      data: {
+        yardId: ctx.yard.id,
+        slug: await uniqueCategorySlug(ctx.yard.id, label),
+        label,
+        sortOrder,
+        active,
+      },
+    });
+  }
+  revalidatePath("/app/products");
+}
+
+export async function deleteCategory(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const existing = await db.category.findUnique({ where: { id } });
+  if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+  // Soft delete, matching products/zones. Products keep their slug and still get a storefront
+  // section (see groupByCategory) rather than vanishing without the owner noticing.
+  await db.category.update({ where: { id }, data: { active: false } });
+  revalidatePath("/app/products");
 }
 
 // ---------- Products ----------
@@ -33,6 +86,12 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     sortOrder: parseInt(String(formData.get("sortOrder") ?? "0")) || 0,
   };
   if (!data.name || data.priceCents <= 0) throw new Error("Name and price are required");
+  // The picker only offers this yard's categories; re-check so a hand-crafted POST can't file a
+  // product under a slug that has no section.
+  const category = await db.category.findUnique({
+    where: { yardId_slug: { yardId: ctx.yard.id, slug: data.category } },
+  });
+  if (!category) throw new Error("Unknown category");
 
   if (id) {
     const existing = await db.product.findUnique({ where: { id } });

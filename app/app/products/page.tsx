@@ -2,6 +2,7 @@ import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, unitLabel } from "@/lib/money";
 import { humanizeSlug } from "@/lib/categories";
+import { ensureDefaultCategories } from "@/lib/categories.server";
 import {
   upsertProduct,
   deleteProduct,
@@ -245,6 +246,11 @@ function CategoryRowForm({ category, count }: { category: CategoryRow; count: nu
 
 export default async function ProductsPage() {
   const ctx = await requireYardUser();
+  // Self-heal before reading: a yard whose categories never got created (see the migration-ahead-
+  // of-deploy case in ensureDefaultCategories) would otherwise land here with an empty picker and
+  // a product form that rejects every save.
+  await ensureDefaultCategories(ctx.yard.id);
+
   const [products, categories, methods, addOns] = await Promise.all([
     db.product.findMany({
       where: { yardId: ctx.yard.id },

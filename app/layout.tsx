@@ -28,17 +28,22 @@ export const metadata: Metadata = {
     "dispatch board for delivery trucks",
   ],
   alternates: { canonical: "/" },
-  // Declared explicitly rather than inferred from app/favicon.ico, which emitted sizes="16x16"
-  // for a file that also carries 32x32 and 48x48 (Next reads only the first directory entry).
+  // Plain PNGs first, ICO last. Safari showed its placeholder on every page while other sites
+  // were fine, and would display /favicon.ico when opened directly — so it could decode the file
+  // but would not adopt it as a favicon. The likely reason is that our ICO stores its layers as
+  // PNG rather than BMP: Safari's image decoder handles PNG-in-ICO, its favicon path historically
+  // does not. Standalone PNGs sidestep the container entirely, and every browser supports them.
   //
-  // Deliberately ICO-only: Safari does not support SVG favicons, and given the choice it selects
-  // the SVG anyway — sizes="any" reads as the best match — then renders nothing rather than
-  // falling back. That left every page showing Safari's placeholder. The ICO's three PNG layers
-  // (16/32/48) cover every size a tab or bookmark asks for, including Retina, so the SVG bought
-  // crispness only above 48px, which no browser chrome ever needs. public/icon.svg is still
-  // served for anything that wants it directly.
+  // These are the exact bitmaps already inside favicon.ico, extracted rather than re-rendered, so
+  // the artwork cannot drift between formats. The ICO stays last for anything too old to take a
+  // PNG icon; SVG is not declared at all, since Safari doesn't support SVG favicons.
   icons: {
-    icon: [{ url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" }],
+    icon: [
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" },
+    ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {

@@ -13,7 +13,7 @@ export default function MarketingNav() {
           YardCart
         </Link>
         <div className="links links-desktop">
-          <Link href="/calculator">Calculator</Link>
+          <Link href="/guides">Guides</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/s/cedar-ridge-demo">Live demo</Link>
           <Link href="/login">Log in</Link>
@@ -49,8 +49,8 @@ export default function MarketingNav() {
       </nav>
       {open && (
         <div className="nav-mobile">
-          <Link href="/calculator" onClick={() => setOpen(false)}>
-            Calculator
+          <Link href="/guides" onClick={() => setOpen(false)}>
+            Guides
           </Link>
           <Link href="/pricing" onClick={() => setOpen(false)}>
             Pricing

@@ -8,9 +8,11 @@ import {
   deleteProduct,
   upsertCategory,
   deleteCategory,
+  hardDeleteCategory,
   moveCategory,
 } from "@/app/actions/catalog";
 import SaveButton from "@/components/SaveButton";
+import DeleteCategoryButton from "@/components/DeleteCategoryButton";
 
 export const metadata = { title: "Products" };
 
@@ -265,11 +267,13 @@ function CategoryHeader() {
 function CategoryRowForm({
   category,
   count,
+  totalCount,
   isFirst,
   isLast,
 }: {
   category: CategoryRow;
   count: number;
+  totalCount: number;
   isFirst: boolean;
   isLast: boolean;
 }) {
@@ -315,6 +319,12 @@ function CategoryRowForm({
             Hide
           </button>
         )}
+        <DeleteCategoryButton
+          action={hardDeleteCategory}
+          name={category.label}
+          blocked={totalCount > 0}
+          blockedReason={`Move or delete this category's ${totalCount} product${totalCount === 1 ? "" : "s"} (including hidden) before deleting it.`}
+        />
       </div>
     </form>
   );
@@ -350,7 +360,9 @@ export default async function ProductsPage() {
   ]);
 
   const countBySlug = new Map<string, number>();
+  const totalCountBySlug = new Map<string, number>();
   for (const p of products) {
+    totalCountBySlug.set(p.category, (totalCountBySlug.get(p.category) ?? 0) + 1);
     if (!p.active) continue;
     countBySlug.set(p.category, (countBySlug.get(p.category) ?? 0) + 1);
   }
@@ -393,6 +405,7 @@ export default async function ProductsPage() {
                 key={c.id}
                 category={c}
                 count={countBySlug.get(c.slug) ?? 0}
+                totalCount={totalCountBySlug.get(c.slug) ?? 0}
                 isFirst={i === 0}
                 isLast={i === categories.length - 1}
               />

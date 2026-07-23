@@ -120,6 +120,28 @@ export async function deleteCategory(formData: FormData): Promise<void> {
   revalidatePath("/app/products");
 }
 
+/**
+ * Permanently remove a category. Refused while any product (shown or hidden) still files under
+ * its slug, since Product.category is a loose slug reference with no foreign key — deleting the
+ * row would silently orphan those products. Move or delete the products first.
+ */
+export async function hardDeleteCategory(formData: FormData): Promise<void> {
+  const ctx = await ctxOrLogin();
+  const id = String(formData.get("id"));
+  const existing = await db.category.findUnique({ where: { id } });
+  if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+  const productCount = await db.product.count({
+    where: { yardId: ctx.yard.id, category: existing.slug },
+  });
+  if (productCount > 0) {
+    throw new Error(
+      `Can't delete "${existing.label}" — it still has ${productCount} product${productCount === 1 ? "" : "s"} (including hidden ones). Move or delete them first.`
+    );
+  }
+  await db.category.delete({ where: { id } });
+  revalidatePath("/app/products");
+}
+
 // ---------- Products ----------
 
 export async function upsertProduct(formData: FormData): Promise<void> {

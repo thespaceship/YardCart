@@ -40,6 +40,8 @@ p { margin: 0 0 1em; }
 table { border-collapse: collapse; width: 100%; }
 th { text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 8px 10px; border-bottom: 2px solid var(--line); }
 td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr.clickable-row { cursor: pointer; }
+tr.clickable-row:hover { background: var(--brand-soft); }
 code { background: var(--brand-soft); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }

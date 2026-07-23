@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatCents, unitLabel } from "@/lib/money";
-import StatusBadge from "@/components/StatusBadge";
+import OrderRow from "@/components/OrderRow";
 
 export const metadata = { title: "Orders" };
 
@@ -91,40 +90,7 @@ export default async function OrdersPage(props: {
               </tr>
             )}
             {orders.map((o) => (
-              <tr key={o.id}>
-                <td>
-                  <Link href={`/app/orders/${o.id}`}>#{o.number}</Link>
-                  <div className="muted">{o.channel === "PHONE" ? "phone" : "online"}</div>
-                </td>
-                <td>
-                  {o.createdAt.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}
-                </td>
-                <td>
-                  {o.customerName}
-                  <div className="muted">{o.customerPhone}</div>
-                </td>
-                <td style={{ maxWidth: 260 }}>
-                  {o.items.map((i) => `${i.qty} ${unitLabel(i.unitSnap)} ${i.nameSnap}`).join(", ")}
-                </td>
-                <td>
-                  {(o.scheduledDate ?? o.requestedDate)?.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) ?? "—"}
-                  {o.scheduledSlot && <span className="muted"> {o.scheduledSlot}</span>}
-                  <div className="muted">{o.truck?.name ?? ""}</div>
-                </td>
-                <td>{formatCents(o.totalCents)}</td>
-                <td>
-                  {o.paymentStatus === "PAID" ? (
-                    <span className="badge delivered">Paid</span>
-                  ) : o.paymentStatus === "PAY_ON_DELIVERY" ? (
-                    <span className="badge neutral">On delivery</span>
-                  ) : (
-                    <span className="badge canceled">Unpaid</span>
-                  )}
-                </td>
-                <td>
-                  <StatusBadge status={o.status} />
-                </td>
-              </tr>
+              <OrderRow key={o.id} order={o} />
             ))}
           </tbody>
         </table>

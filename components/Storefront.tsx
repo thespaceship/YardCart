@@ -88,8 +88,8 @@ export default function Storefront({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
-  // Empty = let the yard's rules pick. Only set when the customer deliberately overrides.
-  const [methodId, setMethodId] = useState("");
+  // Which category the shopper is browsing. "all" = every product, the starting view.
+  const [activeCategory, setActiveCategory] = useState("all");
   const [form, setForm] = useState({
     customerName: "",
     customerPhone: "",
@@ -130,7 +130,7 @@ export default function Storefront({
       const res = await fetch(`/api/storefront/${slug}/quote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zip, cart: cartLines, methodId: methodId || undefined }),
+        body: JSON.stringify({ zip, cart: cartLines }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -148,13 +148,13 @@ export default function Storefront({
       setLoadingQuote(false);
       setZipChecked(true);
     }
-  }, [zip, cartLines, slug, selectedDate, methodId]);
+  }, [zip, cartLines, slug, selectedDate]);
 
-  // re-quote when the cart or the chosen truck changes after a ZIP has been checked
+  // re-quote when the cart changes after a ZIP has been checked
   useEffect(() => {
     if (zipChecked && cartLines.length > 0) void fetchQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(cartLines), methodId]);
+  }, [JSON.stringify(cartLines)]);
 
   const setQty = (p: PublicProduct, raw: number) => {
     const qty = isFinite(raw) ? Math.max(0, Math.min(p.maxQty, raw)) : 0;
@@ -180,6 +180,22 @@ export default function Storefront({
     () => groupByCategory(products, categories),
     [products, categories]
   );
+
+  // Only categories that actually have products get a filter — an empty filter is a dead end.
+  const filters = useMemo(
+    () => [
+      { slug: "all", label: "All materials", count: products.length },
+      ...sections.map((s) => ({ slug: s.slug, label: s.label, count: s.products.length })),
+    ],
+    [sections, products.length]
+  );
+
+  const shown = useMemo(() => {
+    const picked = activeCategory === "all" ? sections : sections.filter((s) => s.slug === activeCategory);
+    return picked.flatMap((s) => s.products.map((p) => ({ ...p, categoryLabel: s.label })));
+  }, [sections, activeCategory]);
+
+  const activeLabel = filters.find((f) => f.slug === activeCategory)?.label ?? "All materials";
 
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -218,7 +234,7 @@ export default function Storefront({
   return (
     <div className="stack">
       {/* Yardage calculator */}
-      <div className="card">
+      <div className="card" style={{ maxWidth: 720 }}>
         <h3>Not sure how much you need?</h3>
         <div className="field-row" style={{ alignItems: "flex-end" }}>
           <div>
@@ -252,69 +268,108 @@ export default function Storefront({
         </div>
       </div>
 
-      {/* Catalog */}
-      {sections.map((section) => (
-        <div key={section.slug}>
-          <h2 style={{ margin: "8px 0 12px" }}>{section.label}</h2>
-          <div className="stack">
-            {section.products.map((p: PublicProduct) => {
-              const qty = cart[p.id] ?? 0;
-              return (
-                <div className="card spread" key={p.id}>
-                  {p.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.imageUrl}
-                      alt={p.name}
-                      loading="lazy"
-                      onClick={() => setLightbox({ src: p.imageUrl, alt: p.name })}
-                      title="Click to enlarge"
-                      style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0, cursor: "zoom-in" }}
-                    />
-                  )}
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    <strong>{p.name}</strong>
-                    <div className="muted">{p.description}</div>
-                    <div style={{ marginTop: 4 }}>
+      {/* Catalog: category filters on the left, product gallery on the right */}
+      <div className="shopfront">
+        <aside className="shop-filters" aria-label="Product categories">
+          <h3>Shop by category</h3>
+          <ul>
+            {filters.map((f) => (
+              <li key={f.slug}>
+                <button
+                  type="button"
+                  aria-pressed={activeCategory === f.slug}
+                  aria-label={`${f.label} (${f.count})`}
+                  onClick={() => setActiveCategory(f.slug)}
+                >
+                  <span>{f.label}</span>
+                  <span className="count">{f.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
+
+        <div>
+          <div className="shop-head">
+            <h2 style={{ margin: 0 }}>{activeLabel}</h2>
+            <span className="muted">
+              {shown.length} {shown.length === 1 ? "product" : "products"}
+            </span>
+          </div>
+
+          {shown.length === 0 ? (
+            <p className="muted">
+              Nothing listed here right now — call {yardPhone || yardName} and we&apos;ll sort you out.
+            </p>
+          ) : (
+            <div className="product-grid">
+              {shown.map((p) => {
+                const qty = cart[p.id] ?? 0;
+                return (
+                  <div className={`card product-card${qty > 0 ? " in-cart" : ""}`} key={p.id}>
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="product-thumb"
+                        src={p.imageUrl}
+                        alt={p.name}
+                        loading="lazy"
+                        onClick={() => setLightbox({ src: p.imageUrl, alt: p.name })}
+                        title="Click to enlarge"
+                      />
+                    ) : (
+                      <div className="product-thumb empty" aria-hidden="true">
+                        {/* Neutral stand-in until the yard uploads a photo — a material-specific
+                            icon would be wrong for half the catalog. */}
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <circle cx="8.5" cy="10" r="1.5" />
+                          <path d="M21 16l-5-5-5.5 6" />
+                        </svg>
+                      </div>
+                    )}
+                    {activeCategory === "all" && <div className="pcat">{p.categoryLabel}</div>}
+                    <div className="pname">{p.name}</div>
+                    {p.description && <div className="pdesc">{p.description}</div>}
+                    <div className="pprice">
                       <strong>{usd(p.priceCents)}</strong>{" "}
                       <span className="muted">per {UNIT_LABELS[p.unit] ?? p.unit}</span>
                     </div>
+                    <div className="qty-row">
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        aria-label={`Less ${p.name}`}
+                        onClick={() => bumpQty(p, -1)}
+                      >
+                        −
+                      </button>
+                      <input
+                        inputMode="decimal"
+                        aria-label={`Quantity of ${p.name}`}
+                        value={qty || ""}
+                        placeholder="0"
+                        onChange={(e) => setQty(p, parseFloat(e.target.value))}
+                      />
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        aria-label={`More ${p.name}`}
+                        onClick={() => bumpQty(p, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <button
-                      type="button"
-                      className="btn secondary small"
-                      aria-label={`Less ${p.name}`}
-                      onClick={() => bumpQty(p, -1)}
-                    >
-                      −
-                    </button>
-                    <input
-                      style={{ width: 76, textAlign: "center" }}
-                      inputMode="decimal"
-                      aria-label={`Quantity of ${p.name}`}
-                      value={qty || ""}
-                      placeholder="0"
-                      onChange={(e) => setQty(p, parseFloat(e.target.value))}
-                    />
-                    <button
-                      type="button"
-                      className="btn secondary small"
-                      aria-label={`More ${p.name}`}
-                      onClick={() => bumpQty(p, 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      ))}
+      </div>
 
       {/* Delivery check + checkout */}
-      <div className="card" ref={checkoutRef}>
+      <div className="card" ref={checkoutRef} style={{ maxWidth: 720 }}>
         {demoPlaced ? (
           <>
             <h2>Order placed — demo complete 🎉</h2>
@@ -377,38 +432,15 @@ export default function Storefront({
                   )}
                 </div>
 
-                {quote.delivery && (
-                  <div style={{ margin: "12px 0" }}>
-                    <label htmlFor="method">Delivered by</label>
-                    {quote.delivery.options.length > 1 ? (
-                      <select
-                        id="method"
-                        value={methodId || quote.delivery.selected.methodId}
-                        onChange={(e) => setMethodId(e.target.value)}
-                      >
-                        {quote.delivery.options.map((o) => (
-                          <option key={o.methodId} value={o.methodId}>
-                            {o.name} — {usd(o.feeCents)}
-                            {o.trips > 1 ? ` (${o.trips} trips)` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div style={{ fontWeight: 700 }}>{quote.delivery.selected.name}</div>
-                    )}
-                    <p className="muted" style={{ margin: "6px 0 0" }}>
-                      {quote.delivery.selected.description}
-                      {quote.delivery.selected.trips > 1 && (
-                        <>
-                          {quote.delivery.selected.description ? " · " : ""}
-                          Your order needs {quote.delivery.selected.trips} trips
-                          {quote.delivery.selected.binding === "weight" && " (weight limit)"}
-                          {quote.delivery.selected.binding === "yards" && " (volume limit)"}
-                          {quote.delivery.selected.binding === "pallets" && " (pallet limit)"}.
-                        </>
-                      )}
-                    </p>
-                  </div>
+                {/* Which truck runs the load is the yard's call, not the customer's — we only
+                    tell them when the order is big enough to need more than one trip. */}
+                {quote.delivery && quote.delivery.selected.trips > 1 && (
+                  <p className="muted" style={{ margin: "12px 0 0" }}>
+                    Your order needs {quote.delivery.selected.trips} trips
+                    {quote.delivery.selected.binding === "weight" && " (weight limit)"}
+                    {quote.delivery.selected.binding === "yards" && " (volume limit)"}
+                    {quote.delivery.selected.binding === "pallets" && " (pallet limit)"}.
+                  </p>
                 )}
 
                 <table style={{ maxWidth: 480 }}>
@@ -527,14 +559,20 @@ export default function Storefront({
                         />
                       </div>
                     </div>
-                    <label htmlFor="notes">Placement instructions (optional)</label>
+                    <label htmlFor="notes">Additional comments (optional)</label>
                     <textarea
                       id="notes"
                       rows={2}
-                      placeholder="e.g. Dump on the driveway, left of the garage"
+                      aria-describedby="notes-help"
+                      placeholder="e.g. Gate code, dogs in the yard, best time of day"
                       value={form.placementNotes}
                       onChange={(e) => setForm({ ...form, placementNotes: e.target.value })}
                     />
+                    <p className="muted" id="notes-help" style={{ margin: "6px 0 0" }}>
+                      Anything you tell us here helps, but where the load is dropped is finally up to
+                      the driver — they&apos;ll get as close to your request as the site, the truck,
+                      and safety allow.
+                    </p>
                     {placeError && <div className="alert error">{placeError}</div>}
                     <div style={{ marginTop: 18 }}>
                       <button

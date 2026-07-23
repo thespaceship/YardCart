@@ -77,7 +77,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </p>
           {order.placementNotes && (
             <>
-              <h3>Placement instructions</h3>
+              <h3>Customer comments</h3>
               <p>{order.placementNotes}</p>
             </>
           )}

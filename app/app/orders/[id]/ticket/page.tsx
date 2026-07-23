@@ -61,7 +61,7 @@ export default async function TicketPage(props: { params: Promise<{ id: string }
               fontWeight: 700,
             }}
           >
-            PLACEMENT: {order.placementNotes}
+            NOTES: {order.placementNotes}
           </p>
         )}
         <table style={{ margin: "12px 0" }}>

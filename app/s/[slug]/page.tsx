@@ -131,7 +131,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
           </p>
         </div>
       </header>
-      <main className="container" style={{ padding: "28px 20px 60px", maxWidth: 860 }}>
+      <main className="container" style={{ padding: "28px 20px 60px" }}>
         {yard.aboutText && <p className="muted" style={{ maxWidth: 640 }}>{yard.aboutText}</p>}
         {!yard.acceptOnlineOrders || !yardActive(yard) ? (
           <div className="alert info">

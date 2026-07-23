@@ -87,8 +87,8 @@ export default function PhoneOrderForm({
             </div>
           )}
         </div>
-        <label>Placement instructions</label>
-        <input name="placementNotes" placeholder="Dump on driveway…" />
+        <label>Additional comments</label>
+        <input name="placementNotes" placeholder="Gate code, dogs, best time…" />
         <label>Internal notes</label>
         <input name="internalNotes" />
       </div>

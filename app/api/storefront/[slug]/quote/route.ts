@@ -17,7 +17,6 @@ import { logError } from "@/lib/observability";
 const bodySchema = z.object({
   zip: z.string(),
   cart: z.array(z.object({ productId: z.string(), qty: z.number() })).max(50),
-  methodId: z.string().optional(), // customer's override; ignored if it can't carry the cart
 });
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     const { slug } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
-    const { zip, cart, methodId } = parsed.data;
+    const { zip, cart } = parsed.data;
 
     const yard = await db.yard.findUnique({
       where: { slug },
@@ -57,14 +56,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     }
 
     // Which truck the cart needs, and what that costs. Priced first so the material lines are
-    // settled (clamped quantities) before the load is measured off them.
+    // settled (clamped quantities) before the load is measured off them. The yard's rules pick
+    // the truck outright — customers don't choose, so there's no preference to honor here.
     const materialOnly = priceCart(yard.products, zone, cart, 0);
     const delivery = selectDelivery({
       lines: deliveryLinesFor(yard.products, materialOnly.lines),
       methods: yard.deliveryMethods,
       addOns: yard.deliveryAddOns,
       rates: rateTableFor(zone),
-      preferredMethodId: methodId,
     });
     if (delivery.kind !== "priced" && delivery.kind !== "none") {
       return NextResponse.json(

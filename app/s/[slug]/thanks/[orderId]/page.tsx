@@ -70,7 +70,7 @@ export default async function ThanksPage(props: {
           {order.placementNotes && (
             <>
               <br />
-              Instructions: {order.placementNotes}
+              Your comments: {order.placementNotes}
             </>
           )}
         </p>

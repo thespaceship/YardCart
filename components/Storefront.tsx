@@ -231,6 +231,240 @@ export default function Storefront({
     }
   }
 
+  // Delivery check + checkout. Lives in the sticky rail so it's always in reach.
+  const checkout = (
+    <div className="card checkout-card" ref={checkoutRef}>
+      {demoPlaced ? (
+        <>
+          <h2>Order placed — demo complete 🎉</h2>
+          <div className="alert ok">
+            <strong>No real order was created and no emails were sent.</strong> On a real
+            storefront, your customer would now see a confirmation page and get an email — and
+            the order would land on your dispatch board, ready to schedule onto a truck.
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+            <Link href="/signup" className="btn">
+              Start your free 14-day trial
+            </Link>
+            <button type="button" className="btn secondary" onClick={() => setDemoPlaced(false)}>
+              Back to the demo
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+      <h2>Delivery</h2>
+      {cartCount === 0 ? (
+        <p className="muted">Pick your materials to check delivery pricing for your address.</p>
+      ) : (
+        <>
+          <div className="field-row">
+            <div>
+              <label htmlFor="zip">Delivery ZIP code</label>
+              <input
+                id="zip"
+                inputMode="numeric"
+                maxLength={5}
+                value={zip}
+                onChange={(e) => {
+                  setZip(e.target.value.replace(/\D/g, "").slice(0, 5));
+                  setZipChecked(false);
+                  setQuote(null);
+                }}
+                placeholder="43004"
+              />
+            </div>
+            <div>
+              <button
+                type="button"
+                className="btn"
+                disabled={!/^\d{5}$/.test(zip) || loadingQuote}
+                onClick={() => void fetchQuote()}
+              >
+                {loadingQuote ? "Checking…" : "Check delivery"}
+              </button>
+            </div>
+          </div>
+          {quoteError && <div className="alert error">{quoteError}</div>}
+          {quote && (
+            <>
+              <div className="alert ok">
+                We deliver to {zip} ({quote.zone.name}). Delivery fee:{" "}
+                <strong>{usd(quote.priced.deliveryCents)}</strong>
+                {quote.zone.minOrderCents > 0 && (
+                  <> · Minimum order: {usd(quote.zone.minOrderCents)} of material</>
+                )}
+              </div>
+
+              {/* Which truck runs the load is the yard's call, not the customer's — we only
+                  tell them when the order is big enough to need more than one trip. */}
+              {quote.delivery && quote.delivery.selected.trips > 1 && (
+                <p className="muted" style={{ margin: "12px 0 0" }}>
+                  Your order needs {quote.delivery.selected.trips} trips
+                  {quote.delivery.selected.binding === "weight" && " (weight limit)"}
+                  {quote.delivery.selected.binding === "yards" && " (volume limit)"}
+                  {quote.delivery.selected.binding === "pallets" && " (pallet limit)"}.
+                </p>
+              )}
+
+              <table style={{ maxWidth: 480 }}>
+                <tbody>
+                  <tr>
+                    <td>Material</td>
+                    <td className="right">{usd(quote.priced.materialCents)}</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Delivery
+                      {quote.delivery && quote.delivery.selected.trips > 1 && (
+                        <span className="muted"> × {quote.delivery.selected.trips} trips</span>
+                      )}
+                    </td>
+                    <td className="right">
+                      {usd(
+                        quote.delivery
+                          ? quote.delivery.selected.rateCents
+                          : quote.priced.deliveryCents
+                      )}
+                    </td>
+                  </tr>
+                  {quote.delivery?.selected.addOns.map((a) => (
+                    <tr key={a.id}>
+                      <td>{a.name}</td>
+                      <td className="right">{usd(a.feeCents)}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>
+                      <strong>Total</strong>
+                    </td>
+                    <td className="right">
+                      <strong>{usd(quote.priced.totalCents)}</strong>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {!quote.priced.meetsMinOrder && (
+                <div className="alert error">
+                  Your material subtotal is below the {usd(quote.priced.minOrderCents)} minimum
+                  for this area — add a bit more to your order.
+                </div>
+              )}
+
+              {quote.priced.meetsMinOrder && (
+                <form onSubmit={placeOrder}>
+                  <label htmlFor="date">Delivery date</label>
+                  {quote.dates.length === 0 ? (
+                    <div className="alert error">
+                      No delivery slots available in the next few weeks — please call{" "}
+                      {yardPhone || yardName}.
+                    </div>
+                  ) : (
+                    <select
+                      id="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                    >
+                      {quote.dates.map((d) => (
+                        <option key={d} value={d}>
+                          {prettyDate(d)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="field-row">
+                    <div>
+                      <label htmlFor="name">Your name</label>
+                      <input
+                        id="name"
+                        required
+                        value={form.customerName}
+                        onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                        autoComplete="name"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="phone">Phone</label>
+                      <input
+                        id="phone"
+                        required
+                        type="tel"
+                        value={form.customerPhone}
+                        onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
+                        autoComplete="tel"
+                      />
+                    </div>
+                  </div>
+                  <label htmlFor="email">Email (for your confirmation — optional)</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={form.customerEmail}
+                    onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
+                    autoComplete="email"
+                  />
+                  <div className="field-row">
+                    <div style={{ flex: 2 }}>
+                      <label htmlFor="addr">Street address</label>
+                      <input
+                        id="addr"
+                        required
+                        value={form.addressLine}
+                        onChange={(e) => setForm({ ...form, addressLine: e.target.value })}
+                        autoComplete="street-address"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="city">City</label>
+                      <input
+                        id="city"
+                        value={form.city}
+                        onChange={(e) => setForm({ ...form, city: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <label htmlFor="notes">Additional comments (optional)</label>
+                  <textarea
+                    id="notes"
+                    rows={2}
+                    aria-describedby="notes-help"
+                    placeholder="e.g. Gate code, dogs in the yard, best time of day"
+                    value={form.placementNotes}
+                    onChange={(e) => setForm({ ...form, placementNotes: e.target.value })}
+                  />
+                  <p className="muted" id="notes-help" style={{ margin: "6px 0 0" }}>
+                    Anything you tell us here helps, but where the load is dropped is finally up to
+                    the driver — they&apos;ll get as close to your request as the site, the truck,
+                    and safety allow.
+                  </p>
+                  {placeError && <div className="alert error">{placeError}</div>}
+                  <div style={{ marginTop: 18 }}>
+                    <button
+                      className="btn big"
+                      disabled={placing || quote.dates.length === 0}
+                      style={{ width: "100%" }}
+                    >
+                      {placing
+                        ? "Placing order…"
+                        : `Place order — ${usd(quote.priced.totalCents)} (pay on delivery)`}
+                    </button>
+                    <p className="muted" style={{ marginTop: 8, textAlign: "center" }}>
+                      {isDemo
+                        ? "Demo mode — the order is simulated. Nothing real is placed and no emails are sent."
+                        : `No payment now. ${yardName} will confirm your delivery date.`}
+                    </p>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
+        </>
+      )}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="stack">
       {/* Yardage calculator */}
@@ -268,28 +502,33 @@ export default function Storefront({
         </div>
       </div>
 
-      {/* Catalog: category filters on the left, product gallery on the right */}
+      {/* Catalog: categories + checkout ride along on the left, product gallery on the right.
+          The rail sticks so the running total and the order form never scroll out of reach. */}
       <div className="shopfront">
-        <aside className="shop-filters" aria-label="Product categories">
-          <h3>Shop by category</h3>
-          <ul>
-            {filters.map((f) => (
-              <li key={f.slug}>
-                <button
-                  type="button"
-                  aria-pressed={activeCategory === f.slug}
-                  aria-label={`${f.label} (${f.count})`}
-                  onClick={() => setActiveCategory(f.slug)}
-                >
-                  <span>{f.label}</span>
-                  <span className="count">{f.count}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <div className="shop-rail">
+          <aside className="shop-filters" aria-label="Product categories">
+            <h3>Shop by category</h3>
+            <ul>
+              {filters.map((f) => (
+                <li key={f.slug}>
+                  <button
+                    type="button"
+                    aria-pressed={activeCategory === f.slug}
+                    aria-label={`${f.label} (${f.count})`}
+                    onClick={() => setActiveCategory(f.slug)}
+                  >
+                    <span>{f.label}</span>
+                    <span className="count">{f.count}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </aside>
 
-        <div>
+          {checkout}
+        </div>
+
+        <div className="shop-results">
           <div className="shop-head">
             <h2 style={{ margin: 0 }}>{activeLabel}</h2>
             <span className="muted">
@@ -368,237 +607,6 @@ export default function Storefront({
         </div>
       </div>
 
-      {/* Delivery check + checkout */}
-      <div className="card" ref={checkoutRef} style={{ maxWidth: 720 }}>
-        {demoPlaced ? (
-          <>
-            <h2>Order placed — demo complete 🎉</h2>
-            <div className="alert ok">
-              <strong>No real order was created and no emails were sent.</strong> On a real
-              storefront, your customer would now see a confirmation page and get an email — and
-              the order would land on your dispatch board, ready to schedule onto a truck.
-            </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
-              <Link href="/signup" className="btn">
-                Start your free 14-day trial
-              </Link>
-              <button type="button" className="btn secondary" onClick={() => setDemoPlaced(false)}>
-                Back to the demo
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-        <h2>Delivery</h2>
-        {cartCount === 0 ? (
-          <p className="muted">Add materials above to check delivery pricing for your address.</p>
-        ) : (
-          <>
-            <div className="field-row" style={{ alignItems: "flex-end", maxWidth: 420 }}>
-              <div>
-                <label htmlFor="zip">Delivery ZIP code</label>
-                <input
-                  id="zip"
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={zip}
-                  onChange={(e) => {
-                    setZip(e.target.value.replace(/\D/g, "").slice(0, 5));
-                    setZipChecked(false);
-                    setQuote(null);
-                  }}
-                  placeholder="43004"
-                />
-              </div>
-              <div>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!/^\d{5}$/.test(zip) || loadingQuote}
-                  onClick={() => void fetchQuote()}
-                >
-                  {loadingQuote ? "Checking…" : "Check delivery"}
-                </button>
-              </div>
-            </div>
-            {quoteError && <div className="alert error">{quoteError}</div>}
-            {quote && (
-              <>
-                <div className="alert ok">
-                  We deliver to {zip} ({quote.zone.name}). Delivery fee:{" "}
-                  <strong>{usd(quote.priced.deliveryCents)}</strong>
-                  {quote.zone.minOrderCents > 0 && (
-                    <> · Minimum order: {usd(quote.zone.minOrderCents)} of material</>
-                  )}
-                </div>
-
-                {/* Which truck runs the load is the yard's call, not the customer's — we only
-                    tell them when the order is big enough to need more than one trip. */}
-                {quote.delivery && quote.delivery.selected.trips > 1 && (
-                  <p className="muted" style={{ margin: "12px 0 0" }}>
-                    Your order needs {quote.delivery.selected.trips} trips
-                    {quote.delivery.selected.binding === "weight" && " (weight limit)"}
-                    {quote.delivery.selected.binding === "yards" && " (volume limit)"}
-                    {quote.delivery.selected.binding === "pallets" && " (pallet limit)"}.
-                  </p>
-                )}
-
-                <table style={{ maxWidth: 480 }}>
-                  <tbody>
-                    <tr>
-                      <td>Material</td>
-                      <td className="right">{usd(quote.priced.materialCents)}</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        Delivery
-                        {quote.delivery && quote.delivery.selected.trips > 1 && (
-                          <span className="muted"> × {quote.delivery.selected.trips} trips</span>
-                        )}
-                      </td>
-                      <td className="right">
-                        {usd(
-                          quote.delivery
-                            ? quote.delivery.selected.rateCents
-                            : quote.priced.deliveryCents
-                        )}
-                      </td>
-                    </tr>
-                    {quote.delivery?.selected.addOns.map((a) => (
-                      <tr key={a.id}>
-                        <td>{a.name}</td>
-                        <td className="right">{usd(a.feeCents)}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td>
-                        <strong>Total</strong>
-                      </td>
-                      <td className="right">
-                        <strong>{usd(quote.priced.totalCents)}</strong>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                {!quote.priced.meetsMinOrder && (
-                  <div className="alert error">
-                    Your material subtotal is below the {usd(quote.priced.minOrderCents)} minimum
-                    for this area — add a bit more above.
-                  </div>
-                )}
-
-                {quote.priced.meetsMinOrder && (
-                  <form onSubmit={placeOrder}>
-                    <label htmlFor="date">Delivery date</label>
-                    {quote.dates.length === 0 ? (
-                      <div className="alert error">
-                        No delivery slots available in the next few weeks — please call{" "}
-                        {yardPhone || yardName}.
-                      </div>
-                    ) : (
-                      <select
-                        id="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                      >
-                        {quote.dates.map((d) => (
-                          <option key={d} value={d}>
-                            {prettyDate(d)}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    <div className="field-row">
-                      <div>
-                        <label htmlFor="name">Your name</label>
-                        <input
-                          id="name"
-                          required
-                          value={form.customerName}
-                          onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-                          autoComplete="name"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="phone">Phone</label>
-                        <input
-                          id="phone"
-                          required
-                          type="tel"
-                          value={form.customerPhone}
-                          onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
-                          autoComplete="tel"
-                        />
-                      </div>
-                    </div>
-                    <label htmlFor="email">Email (for your confirmation — optional)</label>
-                    <input
-                      id="email"
-                      type="email"
-                      value={form.customerEmail}
-                      onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
-                      autoComplete="email"
-                    />
-                    <div className="field-row">
-                      <div style={{ flex: 2 }}>
-                        <label htmlFor="addr">Street address</label>
-                        <input
-                          id="addr"
-                          required
-                          value={form.addressLine}
-                          onChange={(e) => setForm({ ...form, addressLine: e.target.value })}
-                          autoComplete="street-address"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="city">City</label>
-                        <input
-                          id="city"
-                          value={form.city}
-                          onChange={(e) => setForm({ ...form, city: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <label htmlFor="notes">Additional comments (optional)</label>
-                    <textarea
-                      id="notes"
-                      rows={2}
-                      aria-describedby="notes-help"
-                      placeholder="e.g. Gate code, dogs in the yard, best time of day"
-                      value={form.placementNotes}
-                      onChange={(e) => setForm({ ...form, placementNotes: e.target.value })}
-                    />
-                    <p className="muted" id="notes-help" style={{ margin: "6px 0 0" }}>
-                      Anything you tell us here helps, but where the load is dropped is finally up to
-                      the driver — they&apos;ll get as close to your request as the site, the truck,
-                      and safety allow.
-                    </p>
-                    {placeError && <div className="alert error">{placeError}</div>}
-                    <div style={{ marginTop: 18 }}>
-                      <button
-                        className="btn big"
-                        disabled={placing || quote.dates.length === 0}
-                        style={{ width: "100%" }}
-                      >
-                        {placing
-                          ? "Placing order…"
-                          : `Place order — ${usd(quote.priced.totalCents)} (pay on delivery)`}
-                      </button>
-                      <p className="muted" style={{ marginTop: 8, textAlign: "center" }}>
-                        {isDemo
-                          ? "Demo mode — the order is simulated. Nothing real is placed and no emails are sent."
-                          : `No payment now. ${yardName} will confirm your delivery date.`}
-                      </p>
-                    </div>
-                  </form>
-                )}
-              </>
-            )}
-          </>
-        )}
-          </>
-        )}
-      </div>
 
       {lightbox && (
         <div

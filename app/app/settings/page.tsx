@@ -3,6 +3,7 @@ import { requireYardUser } from "@/lib/auth";
 import { updateSettings, sendSupportMessage } from "@/app/actions/catalog";
 import { deleteAccount } from "@/app/actions/account";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
+import AccountSecurity from "@/components/AccountSecurity";
 
 export const metadata = { title: "Settings" };
 
@@ -24,7 +25,7 @@ export default async function SettingsPage(props: {
   searchParams: Promise<{ saved?: string; supportSent?: string }>;
 }) {
   const ctx = await requireYardUser();
-  const { yard } = ctx;
+  const { yard, user } = ctx;
   const { saved, supportSent } = await props.searchParams;
   const storefrontUrl = `${process.env.APP_URL ?? ""}/s/${yard.slug}`;
   const deliveryDays = new Set(yard.deliveryDays);
@@ -159,6 +160,8 @@ export default async function SettingsPage(props: {
           <button className="btn">Save settings</button>
         </div>
       </form>
+
+      <AccountSecurity currentEmail={user.email} />
 
       <form action={sendSupportMessage} className="card">
         <h3>Contact support</h3>

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { zoneZips } from "@/lib/zones";
 import { upsertZone, deleteZone } from "@/app/actions/catalog";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Delivery zones" };
 
@@ -33,7 +34,7 @@ function ZoneForm({ zone }: { zone?: {
         Active
       </label>
       <div style={{ marginTop: 12 }}>
-        <button className="btn">{zone ? "Save zone" : "Add zone"}</button>
+        <SaveButton className="btn">{zone ? "Save zone" : "Add zone"}</SaveButton>
       </div>
     </form>
   );

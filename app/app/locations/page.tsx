@@ -4,6 +4,7 @@ import { meetsPlan } from "@/lib/entitlements";
 import { MAX_YARDS_PER_ACCOUNT, ensureOwnerMembership, getOwnedYards } from "@/lib/yards";
 import { createLocation, switchYard } from "@/app/actions/yards";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Locations" };
 
@@ -86,7 +87,7 @@ export default async function LocationsPage(props: {
               <input name="name" required placeholder="North Yard" />
             </div>
             <div>
-              <button className="btn">Create location</button>
+              <SaveButton className="btn">Create location</SaveButton>
             </div>
           </form>
         )}

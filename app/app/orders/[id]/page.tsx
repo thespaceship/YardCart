@@ -11,6 +11,7 @@ import {
   saveInternalNotes,
 } from "@/app/actions/orders";
 import StatusBadge from "@/components/StatusBadge";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Order" };
 
@@ -143,7 +144,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               </select>
             </div>
             <div>
-              <button className="btn secondary">Save</button>
+              <SaveButton className="btn secondary">Save</SaveButton>
             </div>
           </form>
         </div>
@@ -184,9 +185,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               </select>
             </div>
             <div>
-              <button className="btn">
+              <SaveButton className="btn">
                 {order.status === "NEW" ? "Confirm & schedule" : "Update schedule"}
-              </button>
+              </SaveButton>
             </div>
           </form>
           <p className="muted" style={{ marginTop: 8 }}>
@@ -235,7 +236,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           <input type="hidden" name="orderId" value={order.id} />
           <textarea name="internalNotes" rows={3} defaultValue={order.internalNotes} />
           <div style={{ marginTop: 10 }}>
-            <button className="btn secondary">Save notes</button>
+            <SaveButton className="btn secondary">Save notes</SaveButton>
           </div>
         </form>
       </div>

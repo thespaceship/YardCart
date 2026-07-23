@@ -10,6 +10,7 @@ import {
   deleteDeliveryAddOn,
   saveDeliveryRates,
 } from "@/app/actions/catalog";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Delivery" };
 
@@ -95,7 +96,7 @@ function MethodForm({ method }: { method?: MethodRow }) {
         </label>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button className="btn">{method ? "Save method" : "Add delivery method"}</button>
+        <SaveButton className="btn">{method ? "Save method" : "Add delivery method"}</SaveButton>
         {method?.active && (
           <button className="btn danger small" formAction={deleteDeliveryMethod}>
             Retire
@@ -141,7 +142,7 @@ function AddOnForm({ addOn }: { addOn?: AddOnRow }) {
         </label>
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <button className="btn secondary small">{addOn ? "Save" : "Add"}</button>
+        <SaveButton className="btn secondary small">{addOn ? "Save" : "Add"}</SaveButton>
         {addOn?.active && (
           <button className="btn danger small" formAction={deleteDeliveryAddOn}>
             Remove
@@ -322,7 +323,7 @@ export default async function DeliveryPage(props: {
                 </table>
               </div>
               <div style={{ marginTop: 16 }}>
-                <button className="btn">Save pricing</button>
+                <SaveButton className="btn">Save pricing</SaveButton>
               </div>
             </form>
           </>

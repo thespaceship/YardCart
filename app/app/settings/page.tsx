@@ -4,6 +4,7 @@ import { updateSettings, sendSupportMessage } from "@/app/actions/catalog";
 import { deleteAccount } from "@/app/actions/account";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import AccountSecurity from "@/components/AccountSecurity";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Settings" };
 
@@ -157,7 +158,7 @@ export default async function SettingsPage(props: {
         </p>
 
         <div style={{ marginTop: 16 }}>
-          <button className="btn">Save settings</button>
+          <SaveButton className="btn">Save settings</SaveButton>
         </div>
       </form>
 
@@ -171,7 +172,9 @@ export default async function SettingsPage(props: {
         <label>Message</label>
         <textarea name="message" rows={4} maxLength={5000} required />
         <div style={{ marginTop: 16 }}>
-          <button className="btn secondary">Send message</button>
+          <SaveButton className="btn secondary" savingLabel="Sending…" savedLabel="✓ Sent">
+            Send message
+          </SaveButton>
         </div>
       </form>
 

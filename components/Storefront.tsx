@@ -101,6 +101,16 @@ export default function Storefront({
   // yardage calculator
   const [calcSqft, setCalcSqft] = useState("");
   const [calcDepth, setCalcDepth] = useState("3");
+  // Product photo the customer tapped to view larger (null = lightbox closed).
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
   const checkoutRef = useRef<HTMLDivElement>(null);
 
   const cartLines = useMemo(
@@ -257,7 +267,9 @@ export default function Storefront({
                       src={p.imageUrl}
                       alt={p.name}
                       loading="lazy"
-                      style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0 }}
+                      onClick={() => setLightbox({ src: p.imageUrl, alt: p.name })}
+                      title="Click to enlarge"
+                      style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0, cursor: "zoom-in" }}
                     />
                   )}
                   <div style={{ flex: 1, minWidth: 220 }}>
@@ -549,6 +561,59 @@ export default function Storefront({
           </>
         )}
       </div>
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.alt}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            cursor: "zoom-out",
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setLightbox(null)}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 20,
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              fontSize: 40,
+              lineHeight: 1,
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox.src}
+            alt={lightbox.alt}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+              borderRadius: 8,
+              boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+              cursor: "default",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

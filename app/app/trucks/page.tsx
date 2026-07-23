@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { meetsPlan } from "@/lib/entitlements";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { upsertTruck } from "@/app/actions/catalog";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Trucks" };
 
@@ -44,7 +45,7 @@ function TruckForm({
         In service
       </label>
       <div style={{ marginTop: 12 }}>
-        <button className="btn">{truck ? "Save truck" : "Add truck"}</button>
+        <SaveButton className="btn">{truck ? "Save truck" : "Add truck"}</SaveButton>
       </div>
     </form>
   );

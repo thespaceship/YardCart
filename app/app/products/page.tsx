@@ -10,6 +10,7 @@ import {
   deleteCategory,
   moveCategory,
 } from "@/app/actions/catalog";
+import SaveButton from "@/components/SaveButton";
 
 export const metadata = { title: "Products" };
 
@@ -224,7 +225,7 @@ function ProductForm({
         Visible on storefront
       </label>
       <div style={{ marginTop: 12 }}>
-        <button className="btn">{product ? "Save" : "Add product"}</button>
+        <SaveButton className="btn">{product ? "Save" : "Add product"}</SaveButton>
       </div>
     </form>
   );
@@ -306,7 +307,7 @@ function CategoryRowForm({
         {count} product{count === 1 ? "" : "s"}
       </span>
       <div style={{ display: "flex", gap: 6 }}>
-        <button className="btn secondary small">Save</button>
+        <SaveButton className="btn secondary small">Save</SaveButton>
         {category.active && (
           // formAction lets one row post to either action — forms can't nest, and a row-level
           // hide reads far better than a separate stack of danger buttons.
@@ -405,7 +406,7 @@ export default async function ProductsPage() {
             </div>
             <div>
               <input type="hidden" name="active" value="on" />
-              <button className="btn">Add category</button>
+              <SaveButton className="btn">Add category</SaveButton>
             </div>
           </form>
           <p className="muted" style={{ margin: "8px 0 0" }}>

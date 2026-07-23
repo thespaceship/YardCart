@@ -41,7 +41,7 @@ function ProductForm({
   addOns,
 }: {
   product?: {
-    id: string; name: string; category: string; description: string; unit: string;
+    id: string; name: string; category: string; description: string; unit: string; imageUrl: string;
     priceCents: number; minQty: number; maxQty: number; qtyStep: number; active: boolean; sortOrder: number;
     yardsPerUnit: number | null; weightLbsPerUnit: number; palletsPerUnit: number;
     methods: { methodId: string }[]; addOns: { addOnId: string }[];
@@ -83,6 +83,31 @@ function ProductForm({
       </div>
       <label>Description</label>
       <input name="description" defaultValue={product?.description} />
+
+      <label>Photo</label>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {product?.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }}
+          />
+        )}
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <input type="file" name="image" accept="image/jpeg,image/png,image/webp" />
+          <p className="muted" style={{ marginTop: 4 }}>
+            Shown on your storefront. JPG/PNG/WebP; we resize &amp; compress it automatically.
+          </p>
+          {product?.imageUrl && (
+            <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+              <input type="checkbox" name="removeImage" style={{ width: "auto" }} />
+              Remove current photo
+            </label>
+          )}
+        </div>
+      </div>
+
       <div className="field-row">
         <div>
           <label>Unit</label>
@@ -403,6 +428,14 @@ export default async function ProductsPage() {
             {section.products.map((p) => (
               <details className="card" key={p.id}>
                 <summary style={{ cursor: "pointer", display: "flex", gap: 12, alignItems: "center" }}>
+                  {p.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.imageUrl}
+                      alt=""
+                      style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)" }}
+                    />
+                  )}
                   <strong>{p.name}</strong>
                   <span className="muted">
                     {formatCents(p.priceCents)} / {unitLabel(p.unit)}

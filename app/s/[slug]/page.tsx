@@ -50,6 +50,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
     name: p.name,
     category: p.category,
     description: p.description,
+    imageUrl: p.imageUrl,
     unit: p.unit,
     priceCents: p.priceCents,
     minQty: p.minQty,
@@ -90,6 +91,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
             "@type": "Product",
             name: p.name,
             ...(p.description ? { description: p.description } : {}),
+            ...(p.imageUrl ? { image: p.imageUrl } : {}),
           },
         })),
       }

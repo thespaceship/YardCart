@@ -108,6 +108,7 @@ model Product {
   name        String
   category    String      @default("mulch") // Category.slug for this yard (see model Category)
   description String      @default("")
+  imageUrl    String      @default("") // public R2 URL of the product photo ("" = no image)
   unit        String      @default("cubic_yard") // cubic_yard | half_yard | bag | cord | face_cord | ton
   priceCents  Int
   minQty      Float       @default(1)

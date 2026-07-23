@@ -10,6 +10,8 @@ import { categorySlug, moveInList, sortOrdersFor, SORT_STEP } from "@/lib/catego
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertPlan } from "@/lib/entitlements";
+import { processProductImage, ImageError } from "@/lib/images";
+import { uploadImage, deleteImage, productImageKey, keyFromUrl, isStorageConfigured } from "@/lib/storage";
 
 async function ctxOrLogin() {
   const ctx = await requireYardUser();
@@ -169,10 +171,29 @@ export async function upsertProduct(formData: FormData): Promise<void> {
   // as empty and the product keeps working when the yard adds another method later.
   const methodLinks = methodIds.length === ownMethods.length ? [] : methodIds;
 
+  // Process any new photo up front so an unreadable file fails before we write the product.
+  const removeImage = formData.get("removeImage") === "on";
+  const imageFile = formData.get("image");
+  const hasNewImage = imageFile instanceof File && imageFile.size > 0;
+  let processed: Awaited<ReturnType<typeof processProductImage>> | null = null;
+  if (hasNewImage) {
+    if (!isStorageConfigured()) {
+      throw new Error("Image uploads aren't configured yet. Save without a photo, or contact support.");
+    }
+    try {
+      processed = await processProductImage(Buffer.from(await imageFile.arrayBuffer()));
+    } catch (e) {
+      if (e instanceof ImageError) throw new Error(e.message);
+      throw e;
+    }
+  }
+
   let productId = id;
+  let oldImageUrl = "";
   if (id) {
     const existing = await db.product.findUnique({ where: { id } });
     if (!existing || existing.yardId !== ctx.yard.id) throw new Error("Not found");
+    oldImageUrl = existing.imageUrl;
     await db.product.update({ where: { id }, data });
   } else {
     const created = await db.product.create({ data: { ...data, yardId: ctx.yard.id } });
@@ -185,6 +206,20 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     ...methodLinks.map((methodId) => db.productMethod.create({ data: { productId, methodId } })),
     ...addOnIds.map((addOnId) => db.productAddOn.create({ data: { productId, addOnId } })),
   ]);
+
+  // Apply the photo change (upload replacement / clear) and clean up the old blob.
+  if (processed) {
+    const key = productImageKey(ctx.yard.id, productId, processed.ext);
+    const url = await uploadImage(key, processed.buffer, processed.contentType);
+    await db.product.update({ where: { id: productId }, data: { imageUrl: url } });
+    const oldKey = keyFromUrl(oldImageUrl);
+    if (oldKey) await deleteImage(oldKey);
+  } else if (removeImage && oldImageUrl) {
+    await db.product.update({ where: { id: productId }, data: { imageUrl: "" } });
+    const oldKey = keyFromUrl(oldImageUrl);
+    if (oldKey) await deleteImage(oldKey);
+  }
+
   revalidatePath("/app/products");
 }
 

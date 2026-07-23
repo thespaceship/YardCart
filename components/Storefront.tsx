@@ -10,6 +10,7 @@ type PublicProduct = {
   name: string;
   category: string;
   description: string;
+  imageUrl: string;
   unit: string;
   priceCents: number;
   minQty: number;
@@ -250,6 +251,15 @@ export default function Storefront({
               const qty = cart[p.id] ?? 0;
               return (
                 <div className="card spread" key={p.id}>
+                  {p.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.imageUrl}
+                      alt={p.name}
+                      loading="lazy"
+                      style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0 }}
+                    />
+                  )}
                   <div style={{ flex: 1, minWidth: 220 }}>
                     <strong>{p.name}</strong>
                     <div className="muted">{p.description}</div>

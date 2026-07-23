@@ -13,6 +13,7 @@
     "seed:demo": "tsx prisma/seed-demo-prod.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1094.0",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
@@ -20,6 +21,7 @@
     "prisma": "^6.19.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "sharp": "^0.35.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

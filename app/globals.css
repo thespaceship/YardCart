@@ -130,22 +130,42 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 /* Storefront catalog: category rail + product gallery */
 /* 300px is the widest rail that still leaves room for three product columns at 1080. */
 .shopfront { display: grid; grid-template-columns: 300px 1fr; gap: 28px; align-items: start; }
-/* Categories + checkout travel together, pinned, so the order form is never scrolled away.
-   Capped to the viewport with its own scroll — a sticky block taller than the screen would
-   otherwise hide its own bottom (the "Place order" button) once it sticks. */
-.shop-rail {
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
+/* Categories + a compact order summary travel together, pinned, so the summary is always in
+   reach. It's short, so the rail never outgrows the viewport — the full form is in a modal. */
+.shop-rail { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+.checkout-summary h3 { margin: 0 0 10px; }
+.checkout-summary .summary-line {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-right: 4px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 1.1rem;
 }
-/* Narrow column: side-by-side fields would be unusable, so every pair stacks. */
-.checkout-card .field-row { flex-direction: column; gap: 0; }
-.checkout-card table { max-width: none; }
+.checkout-summary .summary-line strong { font-size: 1.25rem; letter-spacing: -0.01em; }
+
+/* Checkout modal: the delivery + order form, given room away from the rail. */
+.modal-card.checkout-modal {
+  max-width: 520px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 4px;
+}
+.modal-close:hover { color: var(--ink); }
+.checkout-modal table { max-width: none; }
+.checkout-modal > h2:first-of-type { margin-top: 4px; padding-right: 28px; }
 .shop-filters h3 {
   font-size: 0.78rem;
   text-transform: uppercase;
@@ -224,11 +244,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 @media (max-width: 760px) {
   .shopfront { grid-template-columns: 1fr; gap: 16px; }
   /* Unwrap the rail so its two halves become grid items in their own right: filters stay on
-     top, but checkout drops below the gallery rather than burying it. */
+     top, the order summary drops below the gallery rather than burying it. */
   .shop-rail { display: contents; }
   .shop-filters { order: 1; }
   .shop-results { order: 2; }
-  .checkout-card { order: 3; }
+  .checkout-summary { order: 3; }
   .shop-filters ul { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
   .shop-filters button { width: auto; white-space: nowrap; border: 1px solid var(--line); background: var(--surface); }
   .product-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

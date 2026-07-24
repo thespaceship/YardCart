@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { groupByCategory, type CategoryView } from "@/lib/categories";
@@ -88,6 +88,9 @@ export default function Storefront({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // The rail shows a compact order summary; the full delivery + checkout form lives in a modal
+  // this opens, so the always-visible rail stays small.
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   // Which category the shopper is browsing. "all" = every product, the starting view.
   const [activeCategory, setActiveCategory] = useState("all");
   const [form, setForm] = useState({
@@ -111,7 +114,20 @@ export default function Storefront({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightbox]);
-  const checkoutRef = useRef<HTMLDivElement>(null);
+  // Close the checkout modal on Escape, and lock the page behind it while it's open.
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCheckoutOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [checkoutOpen]);
 
   const cartLines = useMemo(
     () =>
@@ -197,6 +213,18 @@ export default function Storefront({
 
   const activeLabel = filters.find((f) => f.slug === activeCategory)?.label ?? "All materials";
 
+  // Client-side materials subtotal for the rail summary before a ZIP is checked. Quantities are
+  // already clamped in setQty/bumpQty, so this matches the server's material total; once a quote
+  // exists the summary shows that authoritative grand total instead.
+  const materialSubtotalCents = useMemo(
+    () =>
+      cartLines.reduce((sum, l) => {
+        const p = products.find((pp) => pp.id === l.productId);
+        return sum + (p ? Math.round(p.priceCents * l.qty) : 0);
+      }, 0),
+    [cartLines, products]
+  );
+
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
     if (!quote || !selectedDate) return;
@@ -220,7 +248,6 @@ export default function Storefront({
         setPlaceError(data.message ?? "Could not place your order.");
       } else if (data.demo) {
         setDemoPlaced(true);
-        checkoutRef.current?.scrollIntoView({ behavior: "smooth" });
       } else {
         router.push(`/s/${slug}/thanks/${data.orderId}`);
       }
@@ -231,9 +258,9 @@ export default function Storefront({
     }
   }
 
-  // Delivery check + checkout. Lives in the sticky rail so it's always in reach.
-  const checkout = (
-    <div className="card checkout-card" ref={checkoutRef}>
+  // The delivery check + order form. Rendered inside the checkout modal, not the rail.
+  const checkoutBody = (
+    <>
       {demoPlaced ? (
         <>
           <h2>Order placed — demo complete 🎉</h2>
@@ -246,7 +273,14 @@ export default function Storefront({
             <Link href="/signup" className="btn">
               Start your free 14-day trial
             </Link>
-            <button type="button" className="btn secondary" onClick={() => setDemoPlaced(false)}>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => {
+                setDemoPlaced(false);
+                setCheckoutOpen(false);
+              }}
+            >
               Back to the demo
             </button>
           </div>
@@ -462,6 +496,39 @@ export default function Storefront({
       )}
         </>
       )}
+    </>
+  );
+
+  // Compact order summary for the rail. It stays small and always visible; the button opens the
+  // full checkout modal above.
+  const summary = (
+    <div className="card checkout-summary" aria-label="Your order">
+      <h3>Your order</h3>
+      {cartCount === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>
+          Add materials to start your order — you&apos;ll get delivery pricing at checkout.
+        </p>
+      ) : (
+        <>
+          <div className="summary-line">
+            <span>
+              {cartCount} {cartCount === 1 ? "item" : "items"}
+            </span>
+            <strong>{usd(quote ? quote.priced.totalCents : materialSubtotalCents)}</strong>
+          </div>
+          <p className="muted" style={{ margin: "4px 0 14px" }}>
+            {quote ? `Delivery to ${zip} included` : "Materials subtotal — delivery added at checkout"}
+          </p>
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "100%" }}
+            onClick={() => setCheckoutOpen(true)}
+          >
+            {quote ? "Review & place order" : "Continue to checkout"}
+          </button>
+        </>
+      )}
     </div>
   );
 
@@ -502,8 +569,9 @@ export default function Storefront({
         </div>
       </div>
 
-      {/* Catalog: categories + checkout ride along on the left, product gallery on the right.
-          The rail sticks so the running total and the order form never scroll out of reach. */}
+      {/* Catalog: categories + a compact order summary ride along on the left, product gallery on
+          the right. The rail sticks so the order summary is always in reach; its button opens the
+          full checkout in a modal. */}
       <div className="shopfront">
         <div className="shop-rail">
           <aside className="shop-filters" aria-label="Product categories">
@@ -525,7 +593,7 @@ export default function Storefront({
             </ul>
           </aside>
 
-          {checkout}
+          {summary}
         </div>
 
         <div className="shop-results">
@@ -607,6 +675,31 @@ export default function Storefront({
         </div>
       </div>
 
+
+      {checkoutOpen && (
+        <div
+          className="modal-overlay"
+          onClick={() => setCheckoutOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Checkout"
+        >
+          <div
+            className="modal-card checkout-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close checkout"
+              onClick={() => setCheckoutOpen(false)}
+            >
+              ×
+            </button>
+            {checkoutBody}
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <div

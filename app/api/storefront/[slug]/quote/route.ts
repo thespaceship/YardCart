@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     if (!isValidZip(zip)) {
       return NextResponse.json({ error: "invalid_zip", message: "Enter a 5-digit ZIP code." }, { status: 422 });
     }
-    const zone = matchZone(yard.zones, zip);
+    const zone = matchZone(yard.zones, zip, yard.zip);
     if (!zone) {
       return NextResponse.json(
         { error: "out_of_area", message: "Sorry — that ZIP is outside our delivery area. Give us a call and we may still be able to help." },

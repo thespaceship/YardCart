@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
-import { parseZipList } from "@/lib/zones";
+import { normalizeZip, isValidZip } from "@/lib/zones";
+import { zipCoords } from "@/lib/zipgeo";
 import { PRODUCT_TEMPLATES } from "@/lib/templates";
 import { defaultCategoryRows } from "@/lib/categories";
 import { normalizeTrialPlan } from "@/lib/billing";
@@ -35,10 +36,18 @@ export async function completeOnboarding(
   const state = String(formData.get("state") ?? "").trim().slice(0, 40);
   if (!yardName) return { error: "Yard name is required." };
 
-  const zoneName = String(formData.get("zoneName") ?? "Local delivery").trim().slice(0, 120);
-  const zips = parseZipList(String(formData.get("zipCodes") ?? ""));
+  const zip = normalizeZip(String(formData.get("zip") ?? ""));
+  if (!isValidZip(zip)) return { error: "Enter your yard's 5-digit ZIP code." };
+  if (!zipCoords(zip)) return { error: "We don't recognize that ZIP code — please double-check it." };
+
+  const zoneName =
+    String(formData.get("zoneName") ?? "").trim().slice(0, 120) || "Local delivery";
+  const radiusMiles = Math.min(
+    200,
+    Math.max(0, parseFloat(String(formData.get("radiusMiles") ?? "")) || 0)
+  );
+  if (radiusMiles <= 0) return { error: "Enter how many miles you deliver (for example, 25)." };
   const deliveryFeeCents = dollarsToCents(String(formData.get("deliveryFee") ?? "0"));
-  if (zips.length === 0) return { error: "Enter at least one delivery ZIP code." };
   if (deliveryFeeCents <= 0) return { error: "Set a delivery fee (you can add more zones later)." };
   const minOrderCents = dollarsToCents(String(formData.get("minOrder") ?? "0"));
 
@@ -80,6 +89,7 @@ export async function completeOnboarding(
       email: email || user.email,
       city,
       state,
+      zip,
       // Trial is scoped to the tier the owner picked on the pricing page (defaults to Starter);
       // planStatus stays TRIALING so it's still a free 14-day trial, no card required.
       plan: normalizeTrialPlan(formData.get("plan")),
@@ -92,7 +102,7 @@ export async function completeOnboarding(
         create: defaultCategoryRows(),
       },
       zones: {
-        create: [{ name: zoneName, zipCodes: JSON.stringify(zips), deliveryFeeCents, minOrderCents }],
+        create: [{ name: zoneName, radiusMiles, centerZip: "", zipCodes: "[]", deliveryFeeCents, minOrderCents }],
       },
       trucks: {
         create: [{ name: truckName, maxTripsPerDay }],

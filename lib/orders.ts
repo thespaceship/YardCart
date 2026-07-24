@@ -73,7 +73,7 @@ export async function placeOrder(input: PlaceOrderInput) {
     throw new OrderError("orders_paused", "Online ordering is unavailable right now — please call the yard.");
   }
 
-  const zone = matchZone(yard.zones, input.zip);
+  const zone = matchZone(yard.zones, input.zip, yard.zip);
   if (input.channel === "ONLINE" && !zone) {
     throw new OrderError("out_of_area", "Sorry, that ZIP code is outside our delivery area.");
   }

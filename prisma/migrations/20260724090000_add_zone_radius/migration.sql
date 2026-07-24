@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Zone" ADD COLUMN     "radiusMiles" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "centerZip" TEXT NOT NULL DEFAULT '',
+ALTER COLUMN "zipCodes" SET DEFAULT '[]';

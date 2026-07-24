@@ -42,3 +42,42 @@ describe("matchZone", () => {
     expect(matchZone([zone(["43004"], 4500)], "4300")).toBeNull();
   });
 });
+
+// Distances used below (Columbus, OH area): 43004→43230 ≈ 4 mi, 43004→45402 (Dayton) ≈ 75 mi.
+const radiusZone = (miles: number, fee: number, center = "", active = true) => ({
+  zipCodes: "[]",
+  deliveryFeeCents: fee,
+  active,
+  radiusMiles: miles,
+  centerZip: center,
+});
+
+describe("matchZone — radius", () => {
+  it("serves a ZIP inside the radius (center from yardZip)", () => {
+    const z = matchZone([radiusZone(15, 5000)], "43230", "43004");
+    expect(z?.deliveryFeeCents).toBe(5000);
+  });
+  it("rejects a ZIP outside the radius", () => {
+    expect(matchZone([radiusZone(40, 9500)], "45402", "43004")).toBeNull();
+  });
+  it("uses the zone's own centerZip over the yard ZIP", () => {
+    const z = matchZone([radiusZone(15, 5000, "43004")], "43230", "99999");
+    expect(z?.deliveryFeeCents).toBe(5000);
+  });
+  it("returns null (never throws) for a center we can't place", () => {
+    expect(matchZone([radiusZone(50, 5000)], "43230", "")).toBeNull();
+    expect(matchZone([radiusZone(50, 5000, "00000")], "43230", "43004")).toBeNull();
+  });
+  it("returns null for a delivery ZIP not in the centroid table", () => {
+    expect(matchZone([radiusZone(500, 5000)], "99999", "43004")).toBeNull();
+  });
+  it("cheapest ring wins where radius zones overlap", () => {
+    const zones = [radiusZone(40, 9500), radiusZone(15, 5000)];
+    expect(matchZone(zones, "43230", "43004")?.deliveryFeeCents).toBe(5000);
+  });
+  it("falls through to the wider ring when the inner one doesn't reach", () => {
+    // ~75 mi out: only the 100-mi ring covers it, not the 15-mi ring.
+    const zones = [radiusZone(15, 5000), radiusZone(100, 12000)];
+    expect(matchZone(zones, "45402", "43004")?.deliveryFeeCents).toBe(12000);
+  });
+});

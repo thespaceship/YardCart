@@ -13,17 +13,9 @@ import {
 } from "@/app/actions/catalog";
 import SaveButton from "@/components/SaveButton";
 import DeleteCategoryButton from "@/components/DeleteCategoryButton";
+import UnitField from "@/components/UnitField";
 
 export const metadata = { title: "Products" };
-
-const UNITS = [
-  ["cubic_yard", "Cubic yard"],
-  ["half_yard", "Half yard"],
-  ["bag", "Bag"],
-  ["cord", "Cord"],
-  ["face_cord", "Face cord"],
-  ["ton", "Ton"],
-];
 
 type CategoryRow = { id: string; slug: string; label: string; sortOrder: number; active: boolean };
 type MethodRow = { id: string; name: string };
@@ -113,12 +105,7 @@ function ProductForm({
 
       <div className="field-row">
         <div>
-          <label>Unit</label>
-          <select name="unit" defaultValue={product?.unit ?? "cubic_yard"}>
-            {UNITS.map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          <UnitField defaultUnit={product?.unit} />
         </div>
         <div>
           <label>Price per unit ($)</label>

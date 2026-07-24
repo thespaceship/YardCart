@@ -134,7 +134,13 @@ model Zone {
   yardId           String
   yard             Yard     @relation(fields: [yardId], references: [id], onDelete: Cascade)
   name             String
-  zipCodes         String   // JSON array of ZIP strings
+  // How this zone decides which addresses it serves. A radius zone (radiusMiles > 0) matches any
+  // delivery ZIP within radiusMiles of centerZip; centerZip "" falls back to the yard's own ZIP.
+  // A radiusMiles of 0 means "match the explicit zipCodes list" — the legacy behavior, kept as a
+  // fallback for irregular service areas. See lib/zones.ts:matchZone.
+  radiusMiles      Float    @default(0)
+  centerZip        String   @default("")
+  zipCodes         String   @default("[]") // JSON array of ZIP strings (used only when radiusMiles = 0)
   // Fallback fee, used when no DeliveryRate row exists for (zone, method). Also the tiebreak
   // when a ZIP matches several zones — keep it set even once the rate grid is filled in.
   deliveryFeeCents Int

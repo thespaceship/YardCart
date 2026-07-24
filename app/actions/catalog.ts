@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireYardUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
-import { parseZipList } from "@/lib/zones";
+import { parseZipList, normalizeZip, isValidZip } from "@/lib/zones";
+import { zipCoords } from "@/lib/zipgeo";
 import { categorySlug, moveInList, sortOrdersFor, SORT_STEP } from "@/lib/categories";
 import { sendEmail, emailShell, escapeHtml } from "@/lib/mailer";
 import { rateLimit } from "@/lib/ratelimit";
@@ -151,7 +152,9 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     name: String(formData.get("name") ?? "").trim().slice(0, 120),
     category: String(formData.get("category") ?? "other"),
     description: String(formData.get("description") ?? "").trim().slice(0, 500),
-    unit: String(formData.get("unit") ?? "cubic_yard"),
+    // Presets post a canonical slug; a custom unit posts free text. Trim/cap it and fall back to
+    // cubic yard if it somehow arrives blank, so we never store an empty unit.
+    unit: String(formData.get("unit") ?? "").trim().slice(0, 24) || "cubic_yard",
     priceCents: dollarsToCents(String(formData.get("price") ?? "0")),
     minQty: Math.max(0.5, parseFloat(String(formData.get("minQty") ?? "1")) || 1),
     maxQty: Math.min(200, parseFloat(String(formData.get("maxQty") ?? "30")) || 30),
@@ -257,18 +260,56 @@ export async function deleteProduct(formData: FormData): Promise<void> {
 
 // ---------- Zones ----------
 
+/**
+ * Resolve the "delivery area" half of a zone form into columns. Radius is the default; the ZIP
+ * list is the fallback behind the toggle. A radius zone must have a center we can actually place
+ * on the map — the zone's own center ZIP, or the yard's ZIP — otherwise the radius means nothing.
+ */
+function zoneAreaFromForm(
+  formData: FormData,
+  yardZip: string
+): { radiusMiles: number; centerZip: string; zipCodes: string } {
+  const areaType = String(formData.get("areaType") ?? "radius");
+  if (areaType === "list") {
+    const zips = parseZipList(String(formData.get("zipCodes") ?? ""));
+    if (zips.length === 0) {
+      throw new Error("Add at least one ZIP code, or switch to “By distance”.");
+    }
+    return { radiusMiles: 0, centerZip: "", zipCodes: JSON.stringify(zips) };
+  }
+
+  const radiusMiles = Math.min(
+    200,
+    Math.max(0, parseFloat(String(formData.get("radiusMiles") ?? "")) || 0)
+  );
+  if (radiusMiles <= 0) throw new Error("Enter a delivery radius in miles (for example, 25).");
+
+  const centerRaw = normalizeZip(String(formData.get("centerZip") ?? ""));
+  const centerZip = isValidZip(centerRaw) ? centerRaw : "";
+  const effectiveCenter = centerZip || normalizeZip(yardZip);
+  if (!isValidZip(effectiveCenter)) {
+    throw new Error(
+      "Set a center ZIP for this zone, or add your yard's ZIP in Settings — the radius is measured from there."
+    );
+  }
+  if (!zipCoords(effectiveCenter)) {
+    throw new Error(`We don't recognize ZIP ${effectiveCenter} — double-check the center ZIP.`);
+  }
+  return { radiusMiles, centerZip, zipCodes: "[]" };
+}
+
 export async function upsertZone(formData: FormData): Promise<void> {
   const ctx = await ctxOrLogin();
   const id = String(formData.get("id") ?? "");
-  const zips = parseZipList(String(formData.get("zipCodes") ?? ""));
+  const name = String(formData.get("name") ?? "").trim().slice(0, 120);
+  if (!name) throw new Error("Zone name is required");
   const data = {
-    name: String(formData.get("name") ?? "").trim().slice(0, 120),
-    zipCodes: JSON.stringify(zips),
+    name,
+    ...zoneAreaFromForm(formData, ctx.yard.zip),
     deliveryFeeCents: dollarsToCents(String(formData.get("deliveryFee") ?? "0")),
     minOrderCents: dollarsToCents(String(formData.get("minOrder") ?? "0")),
     active: formData.get("active") === "on",
   };
-  if (!data.name || zips.length === 0) throw new Error("Zone name and at least one ZIP required");
 
   if (id) {
     const existing = await db.zone.findUnique({ where: { id } });

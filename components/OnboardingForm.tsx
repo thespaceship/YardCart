@@ -48,7 +48,14 @@ export default function OnboardingForm({
             <label>State</label>
             <input name="state" placeholder="OH" />
           </div>
+          <div style={{ maxWidth: 160 }}>
+            <label>Yard ZIP code</label>
+            <input name="zip" inputMode="numeric" required placeholder="43004" />
+          </div>
         </div>
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          We measure your delivery radius from here.
+        </p>
       </div>
 
       <div className="card">
@@ -88,8 +95,8 @@ export default function OnboardingForm({
         <h2>3 — Delivery &amp; trucks</h2>
         <div className="field-row">
           <div>
-            <label>Zone name</label>
-            <input name="zoneName" defaultValue="Local delivery" />
+            <label>How far do you deliver? (miles)</label>
+            <input name="radiusMiles" required inputMode="decimal" defaultValue="25" />
           </div>
           <div>
             <label>Delivery fee ($)</label>
@@ -100,8 +107,10 @@ export default function OnboardingForm({
             <input name="minOrder" inputMode="decimal" placeholder="75" />
           </div>
         </div>
-        <label>ZIP codes you deliver to</label>
-        <textarea name="zipCodes" rows={2} required placeholder="43004, 43230, 43068, 43110" />
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          We&apos;ll deliver to any address within this many miles of your yard&apos;s ZIP. You can
+          add more zones or fine-tune this later.
+        </p>
         <div className="field-row">
           <div style={{ flex: 2 }}>
             <label>Truck name</label>
